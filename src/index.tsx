@@ -1,12 +1,475 @@
 import { Hono } from 'hono'
-import { renderer } from './renderer'
+import { cors } from 'hono/cors'
+import { serveStatic } from 'hono/cloudflare-workers'
 
-const app = new Hono()
+type Bindings = {
+  DB: D1Database
+}
 
-app.use(renderer)
+const app = new Hono<{ Bindings: Bindings }>()
 
+// Enable CORS
+app.use('/api/*', cors())
+
+// Serve static files
+app.use('/static/*', serveStatic({ root: './public' }))
+
+// API Routes
+app.get('/api/health', (c) => {
+  return c.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Get DJ profiles
+app.get('/api/services/dj', (c) => {
+  const djProfiles = {
+    dj_cease: {
+      id: 'dj_cease',
+      name: 'DJ Cease',
+      realName: 'Mike Cecil',
+      bio: 'With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event. Specializing in creating seamless musical journeys, Mike has mastered the art of reading the crowd and delivering exactly what the moment needs. From intimate gatherings to grand celebrations, DJ Cease ensures your event\'s soundtrack is nothing short of perfection.',
+      specialties: [
+        'Weddings & Special Events',
+        'Top 40, Hip-Hop, R&B',
+        'Crowd Reading & Energy Management',
+        'Custom Playlist Curation',
+        '20+ Years Experience'
+      ],
+      priority: 1
+    },
+    dj_elev8: {
+      id: 'dj_elev8',
+      name: 'DJ Elev8',
+      realName: 'Brad Powell',
+      bio: 'Brad Powell, known as DJ Elev8, elevates every event with his dynamic mixing style and vast musical knowledge. His ability to blend genres seamlessly while maintaining high energy keeps dance floors packed all night long. With a passion for creating memorable experiences, DJ Elev8 has become a sought-after name in the entertainment industry.',
+      specialties: [
+        'High-Energy Dance Events',
+        'EDM, House, Top 40',
+        'Corporate Events & Parties',
+        'Creative Mixing & Transitions',
+        '15+ Years Experience'
+      ],
+      priority: 2
+    },
+    tko_the_dj: {
+      id: 'tko_the_dj',
+      name: 'TKOtheDJ',
+      realName: 'Joey Tate',
+      bio: 'Joey Tate, performing as TKOtheDJ, delivers knockout performances that leave lasting impressions. Known for his technical precision and creative approach, Joey brings fresh energy to the DJ scene. His versatility across genres and dedication to client satisfaction make him an excellent choice for any celebration.',
+      specialties: [
+        'Versatile Genre Mixing',
+        'Birthday Parties & Celebrations',
+        'Hip-Hop, Pop, Rock Classics',
+        'Interactive Crowd Engagement',
+        '10+ Years Experience'
+      ],
+      priority: 3
+    }
+  }
+  
+  return c.json(djProfiles)
+})
+
+// Get photobooth info
+app.get('/api/services/photobooth', (c) => {
+  const photoboothProfile = {
+    operators: 'Maria Cecil & Cora Scarborough',
+    bio: 'Our professional photobooth service brings fun, laughter, and lasting memories to your event. With two state-of-the-art photobooth setups, we offer high-quality prints, digital sharing options, and a vast selection of props to match any theme. Maria and Cora ensure every guest leaves with a smile and a keepsake.',
+    features: [
+      'Two Professional Photobooth Units',
+      'Unlimited Prints',
+      'Digital Photo Gallery',
+      'Custom Backdrops & Props',
+      'On-Site Attendants',
+      'Social Media Integration'
+    ],
+    capacity: 2
+  }
+  
+  return c.json(photoboothProfile)
+})
+
+// Check availability for a specific date and provider
+app.post('/api/availability/check', async (c) => {
+  const { provider, date } = await c.req.json()
+  const { DB } = c.env
+  
+  try {
+    // Check bookings
+    const bookings = await DB.prepare(`
+      SELECT COUNT(*) as count 
+      FROM bookings 
+      WHERE service_provider = ? 
+      AND event_date = ? 
+      AND status != 'cancelled'
+    `).bind(provider, date).first()
+    
+    // Check manual blocks
+    const blocks = await DB.prepare(`
+      SELECT COUNT(*) as count 
+      FROM availability_blocks 
+      WHERE service_provider = ? 
+      AND block_date = ?
+    `).bind(provider, date).first()
+    
+    let available = true
+    let reason = ''
+    
+    if (blocks && blocks.count > 0) {
+      available = false
+      reason = 'Date manually blocked'
+    } else if (provider.startsWith('photobooth')) {
+      available = bookings && bookings.count < 2
+      if (!available) reason = 'Both photobooth units booked'
+    } else {
+      available = bookings && bookings.count === 0
+      if (!available) reason = 'DJ already booked on this date'
+    }
+    
+    return c.json({ available, reason })
+  } catch (error) {
+    return c.json({ error: 'Failed to check availability' }, 500)
+  }
+})
+
+// Get availability for a month
+app.get('/api/availability/:provider/:year/:month', async (c) => {
+  const { provider, year, month } = c.param()
+  const { DB } = c.env
+  
+  try {
+    const startDate = `${year}-${month.padStart(2, '0')}-01`
+    const endDate = `${year}-${month.padStart(2, '0')}-31`
+    
+    // Get all bookings for this month
+    const bookings = await DB.prepare(`
+      SELECT event_date, COUNT(*) as count
+      FROM bookings
+      WHERE service_provider = ?
+      AND event_date BETWEEN ? AND ?
+      AND status != 'cancelled'
+      GROUP BY event_date
+    `).bind(provider, startDate, endDate).all()
+    
+    // Get manual blocks
+    const blocks = await DB.prepare(`
+      SELECT block_date
+      FROM availability_blocks
+      WHERE service_provider = ?
+      AND block_date BETWEEN ? AND ?
+    `).bind(provider, startDate, endDate).all()
+    
+    const bookedDates = bookings.results?.map((b: any) => b.event_date) || []
+    const blockedDates = blocks.results?.map((b: any) => b.block_date) || []
+    
+    return c.json({ bookedDates, blockedDates })
+  } catch (error) {
+    return c.json({ error: 'Failed to fetch availability' }, 500)
+  }
+})
+
+// Landing Page
 app.get('/', (c) => {
-  return c.render(<h1>Hello!</h1>)
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>In The House Productions - DJ & Photobooth Services</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          /* Color Palette */
+          :root {
+            --primary-red: #E31E24;
+            --deep-red: #8B0000;
+            --pure-black: #000000;
+            --chrome-silver: #C0C0C0;
+            --metallic-chrome: #E8E8E8;
+            --dark-chrome: #808080;
+            --accent-neon: #FF0040;
+          }
+          
+          body {
+            background: #000;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+          }
+          
+          /* Animated Musical Notes Background */
+          #musical-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.2;
+            pointer-events: none;
+          }
+          
+          .note {
+            position: absolute;
+            font-size: 2rem;
+            animation: floatNote linear infinite;
+            opacity: 0.5;
+          }
+          
+          @keyframes floatNote {
+            from {
+              left: 100%;
+              opacity: 0.5;
+            }
+            to {
+              left: -10%;
+              opacity: 0;
+            }
+          }
+          
+          /* Chrome/Red Theme */
+          .chrome-border {
+            border: 3px solid var(--chrome-silver);
+            box-shadow: 0 0 20px rgba(227, 30, 36, 0.6);
+            transition: all 0.3s ease;
+          }
+          
+          .chrome-border:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(227, 30, 36, 1);
+            border-color: var(--primary-red);
+          }
+          
+          .neon-text {
+            text-shadow: 0 0 10px rgba(227, 30, 36, 0.8), 0 0 20px rgba(227, 30, 36, 0.5);
+          }
+          
+          .service-card {
+            background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+            position: relative;
+          }
+          
+          .btn-red {
+            background: var(--primary-red);
+            border: 2px solid var(--chrome-silver);
+            color: white;
+            padding: 12px 32px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(227, 30, 36, 0.5);
+          }
+          
+          .btn-red:hover {
+            background: var(--accent-neon);
+            box-shadow: 0 0 25px rgba(255, 0, 64, 0.8);
+            transform: translateY(-2px);
+          }
+          
+          /* Staff Lines */
+          .staff-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--chrome-silver), transparent);
+            margin: 10px 0;
+          }
+        </style>
+    </head>
+    <body class="min-h-screen">
+        <!-- Animated Musical Notes Background -->
+        <div id="musical-background"></div>
+        
+        <!-- Content -->
+        <div class="relative z-10">
+            <!-- Header -->
+            <header class="py-8 text-center">
+                <h1 class="text-6xl font-bold neon-text mb-2" style="letter-spacing: 3px;">
+                    🎵 IN THE HOUSE PRODUCTIONS 🎵
+                </h1>
+                <div class="flex justify-center gap-4 my-4">
+                    <div class="staff-line w-64"></div>
+                </div>
+                <p class="text-2xl text-chrome-silver italic">"Your Event, Our Expertise"</p>
+            </header>
+            
+            <!-- Service Cards -->
+            <main class="container mx-auto px-4 py-12">
+                <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                    <!-- DJ Services Card -->
+                    <div class="service-card chrome-border rounded-lg p-8 cursor-pointer" onclick="window.location.href='/dj-services'">
+                        <div class="text-center mb-6">
+                            <i class="fas fa-headphones-alt text-8xl" style="color: var(--primary-red);"></i>
+                        </div>
+                        <h2 class="text-4xl font-bold text-center mb-4 neon-text">🎧 DJ SERVICES</h2>
+                        <p class="text-chrome-silver text-center mb-6 text-lg">
+                            Professional DJs spinning the perfect soundtrack for your special event
+                        </p>
+                        <ul class="text-chrome-silver mb-6 space-y-2">
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 3 Professional DJs</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 20+ Years Experience</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Playlists</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> All Event Types</li>
+                        </ul>
+                        <button class="btn-red w-full rounded">
+                            SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Photobooth Card -->
+                    <div class="service-card chrome-border rounded-lg p-8 cursor-pointer" onclick="window.location.href='/photobooth'">
+                        <div class="text-center mb-6">
+                            <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
+                        </div>
+                        <h2 class="text-4xl font-bold text-center mb-4 neon-text">📸 PHOTOBOOTH</h2>
+                        <p class="text-chrome-silver text-center mb-6 text-lg">
+                            Fun memories with instant prints and shareable moments
+                        </p>
+                        <ul class="text-chrome-silver mb-6 space-y-2">
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 2 Professional Units</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Unlimited Prints</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Backdrops</li>
+                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Digital Gallery</li>
+                        </ul>
+                        <button class="btn-red w-full rounded">
+                            SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Coming Soon Section -->
+                <div class="mt-16 text-center">
+                    <h3 class="text-3xl font-bold mb-6 neon-text">⭐ MORE SERVICES COMING SOON ⭐</h3>
+                    <div class="flex justify-center gap-8 flex-wrap">
+                        <div class="text-chrome-silver opacity-50">
+                            <i class="fas fa-lightbulb text-4xl mb-2"></i>
+                            <p>Professional Lighting</p>
+                        </div>
+                        <div class="text-chrome-silver opacity-50">
+                            <i class="fas fa-video text-4xl mb-2"></i>
+                            <p>Event Videography</p>
+                        </div>
+                        <div class="text-chrome-silver opacity-50">
+                            <i class="fas fa-microphone text-4xl mb-2"></i>
+                            <p>MC Services</p>
+                        </div>
+                        <div class="text-chrome-silver opacity-50">
+                            <i class="fas fa-music text-4xl mb-2"></i>
+                            <p>Karaoke Setup</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Auth Buttons -->
+                <div class="mt-12 text-center space-x-4">
+                    <button onclick="window.location.href='/register'" class="btn-red rounded px-8 py-3">
+                        <i class="fas fa-user-plus mr-2"></i> GET STARTED
+                    </button>
+                    <button onclick="window.location.href='/login'" class="bg-transparent border-2 border-chrome-silver text-chrome-silver px-8 py-3 rounded hover:bg-chrome-silver hover:text-black transition-all">
+                        <i class="fas fa-sign-in-alt mr-2"></i> SIGN IN
+                    </button>
+                </div>
+            </main>
+            
+            <!-- Footer -->
+            <footer class="py-8 text-center text-chrome-silver border-t border-dark-chrome mt-16">
+                <p>&copy; 2025 In The House Productions. All rights reserved.</p>
+                <p class="mt-2">80's • 90's • 2000's Music Era Vibes 🎶</p>
+            </footer>
+        </div>
+        
+        <script>
+          // Animated Musical Notes Background
+          function createMusicalNote() {
+            const notes = ['♪', '♫', '♬', '♩', '♭', '♮', '♯'];
+            const note = document.createElement('div');
+            note.className = 'note';
+            note.textContent = notes[Math.floor(Math.random() * notes.length)];
+            
+            // Random color (red or chrome)
+            const colors = ['#E31E24', '#C0C0C0', '#FF0040'];
+            note.style.color = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Random vertical position (on staff lines)
+            const staffPositions = [15, 25, 35, 45, 55];
+            note.style.top = staffPositions[Math.floor(Math.random() * staffPositions.length)] + '%';
+            
+            // Random duration (20-40 seconds)
+            const duration = 20 + Math.random() * 20;
+            note.style.animationDuration = duration + 's';
+            
+            // Random delay
+            note.style.animationDelay = Math.random() * 5 + 's';
+            
+            document.getElementById('musical-background').appendChild(note);
+            
+            // Remove note after animation
+            setTimeout(() => note.remove(), (duration + 5) * 1000);
+          }
+          
+          // Create notes continuously
+          setInterval(createMusicalNote, 2000);
+          
+          // Initial batch
+          for (let i = 0; i < 10; i++) {
+            setTimeout(createMusicalNote, i * 500);
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// DJ Services Page (placeholder for now)
+app.get('/dj-services', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DJ Services - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-black text-white min-h-screen">
+        <div class="container mx-auto px-4 py-8">
+            <div class="text-center">
+                <h1 class="text-4xl font-bold mb-4" style="color: #E31E24;">DJ Services</h1>
+                <p class="text-2xl text-gray-400 mb-8">Coming Soon: DJ Profile Selection</p>
+                <button onclick="window.location.href='/'" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded">
+                    <i class="fas fa-arrow-left mr-2"></i> Back to Home
+                </button>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
+})
+
+// Photobooth Page (placeholder for now)
+app.get('/photobooth', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Photobooth - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-black text-white min-h-screen">
+        <div class="container mx-auto px-4 py-8">
+            <div class="text-center">
+                <h1 class="text-4xl font-bold mb-4" style="color: #E31E24;">Photobooth Services</h1>
+                <p class="text-2xl text-gray-400 mb-8">Coming Soon: Photobooth Booking</p>
+                <button onclick="window.location.href='/'" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded">
+                    <i class="fas fa-arrow-left mr-2"></i> Back to Home
+                </button>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
 })
 
 export default app
