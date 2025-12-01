@@ -1,10 +1,22 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { 
+  hashPassword, 
+  verifyPassword, 
+  createToken, 
+  verifyToken,
+  isValidEmail,
+  isValidPhone,
+  isValidPassword,
+  sanitizeInput
+} from './auth'
 
 type Bindings = {
   DB: D1Database
 }
+
+const JWT_SECRET = 'your-secret-key-change-in-production-2025'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -17,6 +29,187 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // API Routes
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// ===== AUTHENTICATION ROUTES =====
+
+// Register new user
+app.post('/api/auth/register', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { full_name, email, phone, password } = body
+    
+    // Validate required fields
+    if (!full_name || !email || !phone || !password) {
+      return c.json({ error: 'All fields are required' }, 400)
+    }
+    
+    // Validate email
+    if (!isValidEmail(email)) {
+      return c.json({ error: 'Invalid email format' }, 400)
+    }
+    
+    // Validate phone
+    if (!isValidPhone(phone)) {
+      return c.json({ error: 'Invalid phone format. Use format: +1-XXX-XXX-XXXX' }, 400)
+    }
+    
+    // Validate password
+    const passwordValidation = isValidPassword(password)
+    if (!passwordValidation.valid) {
+      return c.json({ error: passwordValidation.message }, 400)
+    }
+    
+    // Sanitize inputs
+    const cleanName = sanitizeInput(full_name)
+    const cleanEmail = email.toLowerCase().trim()
+    const cleanPhone = phone.trim()
+    
+    // Check if email already exists
+    const existingUser = await DB.prepare(`
+      SELECT id FROM users WHERE email = ?
+    `).bind(cleanEmail).first()
+    
+    if (existingUser) {
+      return c.json({ error: 'Email already registered' }, 409)
+    }
+    
+    // Hash password
+    const passwordHash = await hashPassword(password)
+    
+    // Insert user
+    const result = await DB.prepare(`
+      INSERT INTO users (full_name, email, phone, password_hash, role)
+      VALUES (?, ?, ?, ?, 'client')
+    `).bind(cleanName, cleanEmail, cleanPhone, passwordHash).run()
+    
+    // Create JWT token
+    const token = await createToken({
+      userId: result.meta.last_row_id,
+      email: cleanEmail,
+      role: 'client'
+    }, JWT_SECRET)
+    
+    return c.json({
+      success: true,
+      message: 'Registration successful',
+      token,
+      user: {
+        id: result.meta.last_row_id,
+        full_name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: 'client'
+      }
+    }, 201)
+    
+  } catch (error: any) {
+    console.error('Registration error:', error)
+    return c.json({ error: 'Registration failed', details: error.message }, 500)
+  }
+})
+
+// Login user
+app.post('/api/auth/login', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { email, password } = body
+    
+    // Validate required fields
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400)
+    }
+    
+    const cleanEmail = email.toLowerCase().trim()
+    
+    // Find user
+    const user: any = await DB.prepare(`
+      SELECT id, full_name, email, phone, password_hash, role
+      FROM users
+      WHERE email = ?
+    `).bind(cleanEmail).first()
+    
+    if (!user) {
+      return c.json({ error: 'Invalid email or password' }, 401)
+    }
+    
+    // Verify password
+    const isValid = await verifyPassword(password, user.password_hash)
+    
+    if (!isValid) {
+      return c.json({ error: 'Invalid email or password' }, 401)
+    }
+    
+    // Create JWT token
+    const token = await createToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    }, JWT_SECRET)
+    
+    return c.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Login error:', error)
+    return c.json({ error: 'Login failed', details: error.message }, 500)
+  }
+})
+
+// Verify token and get user info
+app.get('/api/auth/me', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, JWT_SECRET)
+    
+    // Get fresh user data
+    const user: any = await DB.prepare(`
+      SELECT id, full_name, email, phone, role, created_at
+      FROM users
+      WHERE id = ?
+    `).bind(payload.userId).first()
+    
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+    
+    return c.json({
+      success: true,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        created_at: user.created_at
+      }
+    })
+    
+  } catch (error: any) {
+    return c.json({ error: 'Invalid or expired token' }, 401)
+  }
 })
 
 // Get DJ profiles
