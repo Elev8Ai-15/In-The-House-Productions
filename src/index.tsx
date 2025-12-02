@@ -611,7 +611,7 @@ app.get('/', (c) => {
   `)
 })
 
-// DJ Services Page (placeholder for now)
+// DJ Services Page - Profile Selection
 app.get('/dj-services', (c) => {
   return c.html(`
     <!DOCTYPE html>
@@ -622,17 +622,337 @@ app.get('/dj-services', (c) => {
         <title>DJ Services - In The House Productions</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --chrome-silver: #C0C0C0;
+            --accent-neon: #FF0040;
+          }
+          
+          body {
+            background: #000;
+            color: #fff;
+          }
+          
+          .neon-text {
+            text-shadow: 0 0 10px rgba(227, 30, 36, 0.8), 0 0 20px rgba(227, 30, 36, 0.5);
+          }
+          
+          .dj-card {
+            background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+            border: 3px solid var(--chrome-silver);
+            box-shadow: 0 0 20px rgba(227, 30, 36, 0.6);
+            transition: all 0.3s ease;
+          }
+          
+          .dj-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 30px rgba(227, 30, 36, 1);
+            border-color: var(--primary-red);
+          }
+          
+          .dj-card.selected {
+            border-color: var(--accent-neon);
+            box-shadow: 0 0 40px rgba(255, 0, 64, 1);
+          }
+          
+          .heart-icon {
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 0 5px rgba(192, 192, 192, 0.5));
+          }
+          
+          .heart-icon:hover {
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 10px rgba(227, 30, 36, 0.8));
+          }
+          
+          .heart-icon.selected {
+            filter: drop-shadow(0 0 15px rgba(227, 30, 36, 1));
+            animation: heartPulse 1.5s ease-in-out infinite;
+          }
+          
+          @keyframes heartPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+          
+          .priority-badge {
+            background: linear-gradient(135deg, var(--primary-red), var(--accent-neon));
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+          }
+          
+          .btn-red {
+            background: var(--primary-red);
+            border: 2px solid var(--chrome-silver);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(227, 30, 36, 0.5);
+          }
+          
+          .btn-red:hover {
+            background: var(--accent-neon);
+            box-shadow: 0 0 25px rgba(255, 0, 64, 0.8);
+            transform: translateY(-2px);
+          }
+          
+          .dj-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 4px solid var(--chrome-silver);
+            background: linear-gradient(135deg, #333, #666);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            margin: 0 auto;
+          }
+        </style>
     </head>
-    <body class="bg-black text-white min-h-screen">
+    <body class="min-h-screen">
         <div class="container mx-auto px-4 py-8">
-            <div class="text-center">
-                <h1 class="text-4xl font-bold mb-4" style="color: #E31E24;">DJ Services</h1>
-                <p class="text-2xl text-gray-400 mb-8">Coming Soon: DJ Profile Selection</p>
-                <button onclick="window.location.href='/'" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded">
-                    <i class="fas fa-arrow-left mr-2"></i> Back to Home
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-5xl font-bold neon-text mb-2">🎧 SELECT YOUR DJ 🎧</h1>
+                <p class="text-chrome-silver text-xl">Choose from our professional DJs</p>
+                <p class="text-gray-400 mt-2">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    DJ Cease is automatically selected. Click ❤️ to choose a different DJ.
+                </p>
+            </div>
+            
+            <!-- DJ Selection Info -->
+            <div id="selectionInfo" class="text-center mb-8 p-4 rounded" style="background: rgba(227, 30, 36, 0.1); border: 2px solid var(--primary-red);">
+                <p class="text-lg">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span id="selectedDJName">DJ Cease (Mike Cecil)</span> will be your DJ!
+                </p>
+            </div>
+            
+            <!-- DJ Profile Cards -->
+            <div class="grid md:grid-cols-3 gap-6 mb-8">
+                <!-- DJ Cease -->
+                <div class="dj-card rounded-lg p-6 selected" id="card-dj_cease">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="priority-badge">1ST CHOICE</span>
+                        <div class="heart-container" onclick="selectDJ('dj_cease')">
+                            <svg class="heart-icon selected" id="heart-dj_cease" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#E31E24">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="dj-image mb-4">
+                        🎧
+                    </div>
+                    
+                    <h2 class="text-3xl font-bold text-center mb-2 neon-text">DJ CEASE</h2>
+                    <p class="text-center text-chrome-silver mb-4">Mike Cecil</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2 flex items-center">
+                            <i class="fas fa-star mr-2" style="color: var(--primary-red);"></i>
+                            Specialties
+                        </h3>
+                        <ul class="text-sm space-y-1 text-gray-300">
+                            <li>• Weddings & Special Events</li>
+                            <li>• Top 40, Hip-Hop, R&B</li>
+                            <li>• Crowd Reading</li>
+                            <li>• 20+ Years Experience</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">Bio</h3>
+                        <p class="text-sm text-gray-400">
+                            With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event.
+                        </p>
+                    </div>
+                    
+                    <button onclick="viewFullBio('dj_cease')" class="text-primary-red hover:text-accent-neon text-sm">
+                        <i class="fas fa-info-circle mr-1"></i> View Full Bio
+                    </button>
+                </div>
+                
+                <!-- DJ Elev8 -->
+                <div class="dj-card rounded-lg p-6" id="card-dj_elev8">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="priority-badge">2ND CHOICE</span>
+                        <div class="heart-container" onclick="selectDJ('dj_elev8')">
+                            <svg class="heart-icon" id="heart-dj_elev8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#C0C0C0" stroke-width="2">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="dj-image mb-4">
+                        🎵
+                    </div>
+                    
+                    <h2 class="text-3xl font-bold text-center mb-2 neon-text">DJ ELEV8</h2>
+                    <p class="text-center text-chrome-silver mb-4">Brad Powell</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2 flex items-center">
+                            <i class="fas fa-star mr-2" style="color: var(--primary-red);"></i>
+                            Specialties
+                        </h3>
+                        <ul class="text-sm space-y-1 text-gray-300">
+                            <li>• High-Energy Events</li>
+                            <li>• EDM, House, Top 40</li>
+                            <li>• Corporate Events</li>
+                            <li>• 15+ Years Experience</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">Bio</h3>
+                        <p class="text-sm text-gray-400">
+                            Brad Powell elevates every event with his dynamic mixing style and vast musical knowledge.
+                        </p>
+                    </div>
+                    
+                    <button onclick="viewFullBio('dj_elev8')" class="text-primary-red hover:text-accent-neon text-sm">
+                        <i class="fas fa-info-circle mr-1"></i> View Full Bio
+                    </button>
+                </div>
+                
+                <!-- TKOtheDJ -->
+                <div class="dj-card rounded-lg p-6" id="card-tko_the_dj">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="priority-badge">3RD CHOICE</span>
+                        <div class="heart-container" onclick="selectDJ('tko_the_dj')">
+                            <svg class="heart-icon" id="heart-tko_the_dj" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#C0C0C0" stroke-width="2">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="dj-image mb-4">
+                        🎶
+                    </div>
+                    
+                    <h2 class="text-3xl font-bold text-center mb-2 neon-text">TKOtheDJ</h2>
+                    <p class="text-center text-chrome-silver mb-4">Joey Tate</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2 flex items-center">
+                            <i class="fas fa-star mr-2" style="color: var(--primary-red);"></i>
+                            Specialties
+                        </h3>
+                        <ul class="text-sm space-y-1 text-gray-300">
+                            <li>• Versatile Genre Mixing</li>
+                            <li>• Birthday Parties</li>
+                            <li>• Hip-Hop, Pop, Rock</li>
+                            <li>• 10+ Years Experience</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">Bio</h3>
+                        <p class="text-sm text-gray-400">
+                            Joey Tate delivers knockout performances that leave lasting impressions with his versatility.
+                        </p>
+                    </div>
+                    
+                    <button onclick="viewFullBio('tko_the_dj')" class="text-primary-red hover:text-accent-neon text-sm">
+                        <i class="fas fa-info-circle mr-1"></i> View Full Bio
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="text-center space-x-4">
+                <button onclick="window.location.href='/'" class="bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded font-bold">
+                    <i class="fas fa-arrow-left mr-2"></i> Back
+                </button>
+                <button onclick="continueToCalendar()" class="btn-red px-8 py-3 rounded font-bold text-lg">
+                    <i class="fas fa-calendar-alt mr-2"></i> CONTINUE TO CALENDAR
                 </button>
             </div>
         </div>
+        
+        <script>
+          let selectedDJ = 'dj_cease'; // Default selection
+          
+          const djData = {
+            dj_cease: {
+              name: 'DJ Cease (Mike Cecil)',
+              fullBio: 'With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event. Specializing in creating seamless musical journeys, Mike has mastered the art of reading the crowd and delivering exactly what the moment needs. From intimate gatherings to grand celebrations, DJ Cease ensures your event\\'s soundtrack is nothing short of perfection.'
+            },
+            dj_elev8: {
+              name: 'DJ Elev8 (Brad Powell)',
+              fullBio: 'Brad Powell, known as DJ Elev8, elevates every event with his dynamic mixing style and vast musical knowledge. His ability to blend genres seamlessly while maintaining high energy keeps dance floors packed all night long. With a passion for creating memorable experiences, DJ Elev8 has become a sought-after name in the entertainment industry.'
+            },
+            tko_the_dj: {
+              name: 'TKOtheDJ (Joey Tate)',
+              fullBio: 'Joey Tate, performing as TKOtheDJ, delivers knockout performances that leave lasting impressions. Known for his technical precision and creative approach, Joey brings fresh energy to the DJ scene. His versatility across genres and dedication to client satisfaction make him an excellent choice for any celebration.'
+            }
+          };
+          
+          function selectDJ(djId) {
+            selectedDJ = djId;
+            
+            // Update all cards
+            ['dj_cease', 'dj_elev8', 'tko_the_dj'].forEach(id => {
+              const card = document.getElementById('card-' + id);
+              const heart = document.getElementById('heart-' + id);
+              
+              if (id === djId) {
+                card.classList.add('selected');
+                heart.classList.add('selected');
+                heart.setAttribute('fill', '#E31E24');
+              } else {
+                card.classList.remove('selected');
+                heart.classList.remove('selected');
+                heart.setAttribute('fill', 'none');
+              }
+            });
+            
+            // Update selection info
+            document.getElementById('selectedDJName').textContent = djData[djId].name;
+          }
+          
+          function viewFullBio(djId) {
+            alert(djData[djId].fullBio);
+          }
+          
+          function continueToCalendar() {
+            // Store selected DJ in localStorage
+            localStorage.setItem('selectedDJ', selectedDJ);
+            
+            // Check if user is logged in
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              alert('Please log in to continue booking');
+              window.location.href = '/login';
+              return;
+            }
+            
+            // Navigate to calendar (placeholder for now)
+            alert('Calendar booking coming soon! You selected: ' + djData[selectedDJ].name);
+            // window.location.href = '/calendar';
+          }
+          
+          // Check if user is logged in on page load
+          window.addEventListener('DOMContentLoaded', () => {
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              const shouldLogin = confirm('You need to be logged in to book a DJ. Would you like to log in now?');
+              if (shouldLogin) {
+                window.location.href = '/login';
+              } else {
+                window.location.href = '/';
+              }
+            }
+          });
+        </script>
     </body>
     </html>
   `)
