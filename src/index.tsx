@@ -492,7 +492,7 @@ app.get('/', (c) => {
                         <div class="text-center mb-6">
                             <i class="fas fa-headphones-alt text-8xl" style="color: var(--primary-red);"></i>
                         </div>
-                        <h2 class="text-4xl font-bold text-center mb-4 neon-text">🎧 DJ SERVICES</h2>
+                        <h2 class="text-4xl font-bold text-center mb-4 neon-text">DJ SERVICES</h2>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Professional DJs spinning the perfect soundtrack for your special event
                         </p>
@@ -1018,7 +1018,7 @@ app.get('/register', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">🎵 REGISTER</h1>
+            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">REGISTER</h1>
             <p class="text-chrome-silver text-lg">Join In The House Productions</p>
         </div>
         <div class="form-card rounded-lg p-8">
@@ -1100,7 +1100,7 @@ app.get('/login', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">🎵 SIGN IN</h1>
+            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">SIGN IN</h1>
             <p class="text-chrome-silver text-lg">Welcome Back!</p>
         </div>
         <div class="form-card rounded-lg p-8">
