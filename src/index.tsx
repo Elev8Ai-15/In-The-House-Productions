@@ -262,6 +262,496 @@ app.get('/api/services/dj', (c) => {
   return c.json(djProfiles)
 })
 
+// DJ Profile Editor Route
+app.get('/dj-editor', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DJ Profile Editor - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <style>
+            :root {
+                --primary-red: #E31E24;
+                --chrome-silver: #C0C0C0;
+                --deep-black: #0a0a0a;
+                --gold: #FFD700;
+            }
+            
+            body {
+                background: linear-gradient(135deg, #000 0%, #1a0000 50%, #000 100%);
+                min-height: 100vh;
+            }
+            
+            .editor-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                max-width: 1800px;
+                margin: 0 auto;
+                padding: 2rem;
+            }
+            
+            @media (max-width: 1200px) {
+                .editor-container {
+                    grid-template-columns: 1fr;
+                }
+            }
+            
+            .editor-panel {
+                background: linear-gradient(145deg, #1a0000, #0a0a0a);
+                border: 3px solid var(--primary-red);
+                border-radius: 15px;
+                padding: 2rem;
+                box-shadow: 0 0 30px rgba(227, 30, 36, 0.3);
+            }
+            
+            .preview-panel {
+                background: linear-gradient(145deg, #0a0a0a, #1a0000);
+                border: 3px solid var(--chrome-silver);
+                border-radius: 15px;
+                padding: 2rem;
+                box-shadow: 0 0 30px rgba(192, 192, 192, 0.3);
+                position: sticky;
+                top: 2rem;
+                max-height: calc(100vh - 4rem);
+                overflow-y: auto;
+            }
+            
+            .form-group {
+                margin-bottom: 1.5rem;
+            }
+            
+            .form-label {
+                display: block;
+                color: var(--gold);
+                font-weight: bold;
+                margin-bottom: 0.5rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                font-size: 0.85rem;
+            }
+            
+            .form-input, .form-textarea, .form-select {
+                width: 100%;
+                padding: 0.75rem;
+                background: rgba(0, 0, 0, 0.5);
+                border: 2px solid var(--chrome-silver);
+                border-radius: 8px;
+                color: white;
+                font-size: 1rem;
+                transition: all 0.3s ease;
+            }
+            
+            .form-input:focus, .form-textarea:focus, .form-select:focus {
+                outline: none;
+                border-color: var(--primary-red);
+                box-shadow: 0 0 15px rgba(227, 30, 36, 0.5);
+            }
+            
+            .form-textarea {
+                min-height: 120px;
+                resize: vertical;
+                font-family: inherit;
+            }
+            
+            .dj-selector {
+                display: flex;
+                gap: 1rem;
+                margin-bottom: 2rem;
+                flex-wrap: wrap;
+            }
+            
+            .dj-btn {
+                flex: 1;
+                padding: 1rem;
+                background: linear-gradient(145deg, #1a0000, #0a0a0a);
+                border: 2px solid var(--chrome-silver);
+                border-radius: 10px;
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            .dj-btn:hover {
+                border-color: var(--primary-red);
+                box-shadow: 0 0 20px rgba(227, 30, 36, 0.5);
+                transform: translateY(-2px);
+            }
+            
+            .dj-btn.active {
+                background: linear-gradient(145deg, var(--primary-red), #a00000);
+                border-color: var(--gold);
+                box-shadow: 0 0 25px rgba(227, 30, 36, 0.8);
+            }
+            
+            .specialty-list {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .specialty-item {
+                display: flex;
+                gap: 0.5rem;
+                align-items: center;
+            }
+            
+            .specialty-input {
+                flex: 1;
+                padding: 0.5rem;
+                background: rgba(0, 0, 0, 0.5);
+                border: 2px solid var(--chrome-silver);
+                border-radius: 5px;
+                color: white;
+            }
+            
+            .btn-add, .btn-remove {
+                padding: 0.5rem 1rem;
+                border-radius: 5px;
+                border: none;
+                cursor: pointer;
+                font-weight: bold;
+                transition: all 0.3s ease;
+            }
+            
+            .btn-add {
+                background: var(--gold);
+                color: black;
+            }
+            
+            .btn-remove {
+                background: var(--primary-red);
+                color: white;
+            }
+            
+            .btn-add:hover, .btn-remove:hover {
+                transform: scale(1.05);
+                box-shadow: 0 0 15px currentColor;
+            }
+            
+            .preview-card {
+                background: linear-gradient(145deg, #1a0000 0%, #0a0a0a 100%);
+                border: 3px solid var(--chrome-silver);
+                border-radius: 15px;
+                padding: 2rem;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            }
+            
+            .preview-header {
+                text-align: center;
+                margin-bottom: 1.5rem;
+                padding-bottom: 1.5rem;
+                border-bottom: 2px solid var(--primary-red);
+            }
+            
+            .preview-bio {
+                background: rgba(227, 30, 36, 0.1);
+                border-left: 4px solid var(--primary-red);
+                padding: 1rem;
+                border-radius: 5px;
+                color: #ccc;
+                line-height: 1.6;
+                margin: 1.5rem 0;
+            }
+            
+            .preview-specialties {
+                display: grid;
+                gap: 0.75rem;
+                margin-top: 1.5rem;
+            }
+            
+            .preview-specialty-item {
+                background: rgba(192, 192, 192, 0.1);
+                border: 2px solid var(--chrome-silver);
+                border-radius: 8px;
+                padding: 0.75rem 1rem;
+                color: white;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            
+            .export-btn {
+                width: 100%;
+                padding: 1rem;
+                background: linear-gradient(145deg, var(--gold), #cc9900);
+                border: none;
+                border-radius: 10px;
+                color: black;
+                font-weight: bold;
+                font-size: 1.1rem;
+                cursor: pointer;
+                margin-top: 2rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                transition: all 0.3s ease;
+            }
+            
+            .export-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 0 30px var(--gold);
+            }
+            
+            .priority-badge {
+                display: inline-block;
+                padding: 0.25rem 0.75rem;
+                background: var(--gold);
+                color: black;
+                border-radius: 20px;
+                font-size: 0.75rem;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container mx-auto px-4 py-8">
+            <h1 class="text-3d-ultra text-center mb-8" style="font-size: 3rem;">DJ PROFILE EDITOR</h1>
+            
+            <div class="dj-selector">
+                <button class="dj-btn active" onclick="selectDJ('dj_cease')">DJ CEASE</button>
+                <button class="dj-btn" onclick="selectDJ('dj_elev8')">DJ ELEV8</button>
+                <button class="dj-btn" onclick="selectDJ('tko_the_dj')">TKO THE DJ</button>
+            </div>
+            
+            <div class="editor-container">
+                <!-- Editor Panel -->
+                <div class="editor-panel">
+                    <h2 class="text-3d-gold text-2xl mb-6">EDIT PROFILE</h2>
+                    
+                    <div class="form-group">
+                        <label class="form-label">DJ Name</label>
+                        <input type="text" id="djName" class="form-input" placeholder="e.g., DJ Cease">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Real Name</label>
+                        <input type="text" id="realName" class="form-input" placeholder="e.g., Mike Cecil">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Priority (1=First Choice, 2=Second, 3=Third)</label>
+                        <select id="priority" class="form-select">
+                            <option value="1">1st Choice</option>
+                            <option value="2">2nd Choice</option>
+                            <option value="3">3rd Choice</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Years of Experience</label>
+                        <input type="text" id="yearsExp" class="form-input" placeholder="e.g., 20+ Years">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Biography</label>
+                        <textarea id="bio" class="form-textarea" placeholder="Write a compelling bio..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Specialties</label>
+                        <div id="specialtiesList" class="specialty-list"></div>
+                        <button onclick="addSpecialty()" class="btn-add mt-2">+ ADD SPECIALTY</button>
+                    </div>
+                    
+                    <button onclick="updatePreview()" class="export-btn">UPDATE PREVIEW</button>
+                    <button onclick="exportJSON()" class="export-btn" style="background: linear-gradient(145deg, var(--primary-red), #a00000); color: white;">EXPORT JSON</button>
+                </div>
+                
+                <!-- Preview Panel -->
+                <div class="preview-panel">
+                    <h2 class="text-3d-chrome text-2xl mb-6 text-center">LIVE PREVIEW</h2>
+                    
+                    <div class="preview-card" id="previewCard">
+                        <div class="preview-header">
+                            <div id="previewPriority" class="priority-badge mb-2">1ST CHOICE</div>
+                            <h3 class="text-3d-chrome text-3xl mb-2" id="previewName">DJ CEASE</h3>
+                            <p class="text-gray-400 text-lg" id="previewRealName">Mike Cecil</p>
+                        </div>
+                        
+                        <div class="preview-bio" id="previewBio">
+                            With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event.
+                        </div>
+                        
+                        <div class="preview-specialties" id="previewSpecialties">
+                            <!-- Specialties will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // DJ Data Storage
+            const djData = {
+                dj_cease: {
+                    id: 'dj_cease',
+                    name: 'DJ Cease',
+                    realName: 'Mike Cecil',
+                    bio: 'With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event. Specializing in creating seamless musical journeys, Mike has mastered the art of reading the crowd and delivering exactly what the moment needs. From intimate gatherings to grand celebrations, DJ Cease ensures your event\\'s soundtrack is nothing short of perfection.',
+                    specialties: [
+                        'Weddings & Special Events',
+                        'Top 40, Hip-Hop, R&B',
+                        'Crowd Reading & Energy Management',
+                        'Custom Playlist Curation',
+                        '20+ Years Experience'
+                    ],
+                    priority: 1,
+                    yearsExp: '20+ Years'
+                },
+                dj_elev8: {
+                    id: 'dj_elev8',
+                    name: 'DJ Elev8',
+                    realName: 'Brad Powell',
+                    bio: 'Brad Powell, known as DJ Elev8, elevates every event with his dynamic mixing style and vast musical knowledge. His ability to blend genres seamlessly while maintaining high energy keeps dance floors packed all night long. With a passion for creating memorable experiences, DJ Elev8 has become a sought-after name in the entertainment industry.',
+                    specialties: [
+                        'High-Energy Dance Events',
+                        'EDM, House, Top 40',
+                        'Corporate Events & Parties',
+                        'Creative Mixing & Transitions',
+                        '15+ Years Experience'
+                    ],
+                    priority: 2,
+                    yearsExp: '15+ Years'
+                },
+                tko_the_dj: {
+                    id: 'tko_the_dj',
+                    name: 'TKOtheDJ',
+                    realName: 'Joey Tate',
+                    bio: 'Joey Tate, performing as TKOtheDJ, delivers knockout performances that leave lasting impressions. Known for his technical precision and creative approach, Joey brings fresh energy to the DJ scene. His versatility across genres and dedication to client satisfaction make him an excellent choice for any celebration.',
+                    specialties: [
+                        'Versatile Genre Mixing',
+                        'Birthday Parties & Celebrations',
+                        'Hip-Hop, Pop, Rock Classics',
+                        'Interactive Crowd Engagement',
+                        '10+ Years Experience'
+                    ],
+                    priority: 3,
+                    yearsExp: '10+ Years'
+                }
+            };
+            
+            let currentDJ = 'dj_cease';
+            
+            function selectDJ(djId) {
+                currentDJ = djId;
+                
+                // Update button states
+                document.querySelectorAll('.dj-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+                
+                // Load DJ data into form
+                const dj = djData[djId];
+                document.getElementById('djName').value = dj.name;
+                document.getElementById('realName').value = dj.realName;
+                document.getElementById('priority').value = dj.priority;
+                document.getElementById('yearsExp').value = dj.yearsExp;
+                document.getElementById('bio').value = dj.bio;
+                
+                // Render specialties
+                renderSpecialties(dj.specialties);
+                
+                // Update preview
+                updatePreview();
+            }
+            
+            function renderSpecialties(specialties) {
+                const list = document.getElementById('specialtiesList');
+                list.innerHTML = specialties.map((spec, index) => \`
+                    <div class="specialty-item">
+                        <input type="text" class="specialty-input" value="\${spec}" onchange="updateSpecialty(\${index}, this.value)">
+                        <button class="btn-remove" onclick="removeSpecialty(\${index})">✕</button>
+                    </div>
+                \`).join('');
+            }
+            
+            function updateSpecialty(index, value) {
+                djData[currentDJ].specialties[index] = value;
+                updatePreview();
+            }
+            
+            function addSpecialty() {
+                djData[currentDJ].specialties.push('New Specialty');
+                renderSpecialties(djData[currentDJ].specialties);
+                updatePreview();
+            }
+            
+            function removeSpecialty(index) {
+                djData[currentDJ].specialties.splice(index, 1);
+                renderSpecialties(djData[currentDJ].specialties);
+                updatePreview();
+            }
+            
+            function updatePreview() {
+                const dj = djData[currentDJ];
+                
+                // Update from form inputs
+                dj.name = document.getElementById('djName').value;
+                dj.realName = document.getElementById('realName').value;
+                dj.priority = parseInt(document.getElementById('priority').value);
+                dj.yearsExp = document.getElementById('yearsExp').value;
+                dj.bio = document.getElementById('bio').value;
+                
+                // Update preview
+                const priorityText = ['1ST CHOICE', '2ND CHOICE', '3RD CHOICE'][dj.priority - 1];
+                document.getElementById('previewPriority').textContent = priorityText;
+                document.getElementById('previewName').textContent = dj.name.toUpperCase();
+                document.getElementById('previewRealName').textContent = dj.realName;
+                document.getElementById('previewBio').textContent = dj.bio;
+                
+                // Render specialties preview
+                const specialtiesHTML = dj.specialties.map(spec => \`
+                    <div class="preview-specialty-item">
+                        <span style="color: var(--gold);">▶</span>
+                        <span>\${spec}</span>
+                    </div>
+                \`).join('');
+                document.getElementById('previewSpecialties').innerHTML = specialtiesHTML;
+            }
+            
+            function exportJSON() {
+                const output = {
+                    dj_cease: djData.dj_cease,
+                    dj_elev8: djData.dj_elev8,
+                    tko_the_dj: djData.tko_the_dj
+                };
+                
+                const jsonStr = JSON.stringify(output, null, 2);
+                
+                // Create download
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'dj_profiles.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Also show in console
+                console.log('DJ Profiles JSON:', jsonStr);
+                alert('JSON exported! Check your downloads folder for dj_profiles.json');
+            }
+            
+            // Initialize on load
+            selectDJ('dj_cease');
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Get photobooth info
 app.get('/api/services/photobooth', (c) => {
   const photoboothProfile = {
