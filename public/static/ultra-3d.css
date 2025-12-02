@@ -1,0 +1,512 @@
+/* ===================================================================
+   ULTRA-REALISTIC 3D TEXT EFFECTS
+   In The House Productions - Premium Design System
+   ================================================================== */
+
+/* ===== CORE 3D TEXT STYLES ===== */
+
+/* Ultra 3D Heading - Main Titles */
+.text-3d-ultra {
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #e8e8e8 20%,
+    #c0c0c0 40%,
+    #a0a0a0 60%,
+    #808080 80%,
+    #606060 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+  display: inline-block;
+  
+  /* Multi-layer text shadow for extreme depth */
+  text-shadow: 
+    /* Close shadows for detail */
+    1px 1px 0px rgba(0, 0, 0, 0.8),
+    2px 2px 0px rgba(0, 0, 0, 0.7),
+    3px 3px 0px rgba(0, 0, 0, 0.6),
+    4px 4px 0px rgba(0, 0, 0, 0.5),
+    5px 5px 0px rgba(0, 0, 0, 0.4),
+    
+    /* Medium depth */
+    6px 6px 2px rgba(0, 0, 0, 0.35),
+    7px 7px 2px rgba(0, 0, 0, 0.3),
+    8px 8px 3px rgba(0, 0, 0, 0.25),
+    9px 9px 3px rgba(0, 0, 0, 0.2),
+    10px 10px 4px rgba(0, 0, 0, 0.15),
+    
+    /* Deep shadows for distance */
+    12px 12px 6px rgba(0, 0, 0, 0.12),
+    15px 15px 8px rgba(0, 0, 0, 0.1),
+    20px 20px 12px rgba(0, 0, 0, 0.08),
+    25px 25px 16px rgba(0, 0, 0, 0.05),
+    30px 30px 20px rgba(0, 0, 0, 0.03),
+    
+    /* Red glow effect */
+    0 0 20px rgba(227, 30, 36, 0.8),
+    0 0 40px rgba(227, 30, 36, 0.6),
+    0 0 60px rgba(227, 30, 36, 0.4),
+    0 0 80px rgba(227, 30, 36, 0.2);
+  
+  filter: drop-shadow(0 0 10px rgba(227, 30, 36, 0.8));
+  animation: text3dPulse 3s ease-in-out infinite;
+}
+
+/* Red 3D Text - For emphasis */
+.text-3d-red {
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  background: linear-gradient(
+    180deg,
+    #ff4444 0%,
+    #E31E24 30%,
+    #cc0000 60%,
+    #8B0000 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  text-shadow: 
+    1px 1px 0px #8B0000,
+    2px 2px 0px #7a0000,
+    3px 3px 0px #690000,
+    4px 4px 0px #580000,
+    5px 5px 2px rgba(0, 0, 0, 0.7),
+    6px 6px 4px rgba(0, 0, 0, 0.6),
+    8px 8px 6px rgba(0, 0, 0, 0.5),
+    10px 10px 8px rgba(0, 0, 0, 0.4),
+    15px 15px 12px rgba(0, 0, 0, 0.3),
+    20px 20px 16px rgba(0, 0, 0, 0.2),
+    
+    /* Red glow */
+    0 0 30px rgba(227, 30, 36, 0.9),
+    0 0 50px rgba(227, 30, 36, 0.6),
+    0 0 70px rgba(227, 30, 36, 0.3);
+  
+  filter: drop-shadow(0 0 15px rgba(227, 30, 36, 1));
+}
+
+/* Gold 3D Text - For premium elements */
+.text-3d-gold {
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  background: linear-gradient(
+    180deg,
+    #fffacd 0%,
+    #FFD700 20%,
+    #ffa500 40%,
+    #cc8800 60%,
+    #996600 80%,
+    #664400 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  text-shadow: 
+    1px 1px 0px #996600,
+    2px 2px 0px #885500,
+    3px 3px 0px #774400,
+    4px 4px 0px #663300,
+    5px 5px 2px rgba(0, 0, 0, 0.6),
+    6px 6px 4px rgba(0, 0, 0, 0.5),
+    8px 8px 6px rgba(0, 0, 0, 0.4),
+    10px 10px 10px rgba(0, 0, 0, 0.3),
+    15px 15px 15px rgba(0, 0, 0, 0.2),
+    
+    /* Gold glow */
+    0 0 20px rgba(255, 215, 0, 0.8),
+    0 0 40px rgba(255, 215, 0, 0.5),
+    0 0 60px rgba(255, 215, 0, 0.3);
+  
+  filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.9));
+}
+
+/* Chrome/Silver 3D Text */
+.text-3d-chrome {
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #f5f5f5 10%,
+    #e0e0e0 20%,
+    #C0C0C0 30%,
+    #a8a8a8 40%,
+    #909090 50%,
+    #787878 60%,
+    #606060 70%,
+    #484848 80%,
+    #303030 90%,
+    #181818 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  text-shadow: 
+    1px 1px 0px rgba(0, 0, 0, 0.9),
+    2px 2px 0px rgba(0, 0, 0, 0.8),
+    3px 3px 0px rgba(0, 0, 0, 0.7),
+    4px 4px 0px rgba(0, 0, 0, 0.6),
+    5px 5px 2px rgba(0, 0, 0, 0.5),
+    6px 6px 4px rgba(0, 0, 0, 0.4),
+    8px 8px 6px rgba(0, 0, 0, 0.3),
+    10px 10px 10px rgba(0, 0, 0, 0.2),
+    15px 15px 15px rgba(0, 0, 0, 0.15),
+    
+    /* Chrome shine */
+    0 0 20px rgba(255, 255, 255, 0.5),
+    0 0 40px rgba(192, 192, 192, 0.3);
+  
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+}
+
+/* ===== SIZE VARIATIONS ===== */
+
+.text-3d-massive {
+  font-size: clamp(3rem, 8vw, 8rem);
+}
+
+.text-3d-huge {
+  font-size: clamp(2.5rem, 6vw, 6rem);
+}
+
+.text-3d-large {
+  font-size: clamp(2rem, 5vw, 5rem);
+}
+
+.text-3d-medium {
+  font-size: clamp(1.5rem, 4vw, 3.5rem);
+}
+
+.text-3d-small {
+  font-size: clamp(1.2rem, 3vw, 2.5rem);
+}
+
+/* ===== EMBOSSED 3D EFFECT ===== */
+
+.text-3d-embossed {
+  font-weight: 800;
+  color: #C0C0C0;
+  text-shadow: 
+    /* Light side (top-left) */
+    -1px -1px 0px rgba(255, 255, 255, 0.8),
+    -2px -2px 0px rgba(255, 255, 255, 0.6),
+    -3px -3px 0px rgba(255, 255, 255, 0.4),
+    
+    /* Dark side (bottom-right) */
+    1px 1px 0px rgba(0, 0, 0, 0.8),
+    2px 2px 0px rgba(0, 0, 0, 0.6),
+    3px 3px 0px rgba(0, 0, 0, 0.4),
+    4px 4px 2px rgba(0, 0, 0, 0.3),
+    5px 5px 4px rgba(0, 0, 0, 0.2),
+    
+    /* Depth */
+    6px 6px 8px rgba(0, 0, 0, 0.15),
+    8px 8px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== ENGRAVED 3D EFFECT ===== */
+
+.text-3d-engraved {
+  font-weight: 800;
+  color: #808080;
+  text-shadow: 
+    /* Reverse of embossed */
+    1px 1px 0px rgba(255, 255, 255, 0.8),
+    2px 2px 0px rgba(255, 255, 255, 0.6),
+    
+    -1px -1px 0px rgba(0, 0, 0, 0.8),
+    -2px -2px 2px rgba(0, 0, 0, 0.6),
+    -3px -3px 4px rgba(0, 0, 0, 0.4),
+    -4px -4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== NEON 3D EFFECT ===== */
+
+.text-3d-neon {
+  font-weight: 900;
+  color: #E31E24;
+  text-shadow: 
+    /* Core glow */
+    0 0 5px #fff,
+    0 0 10px #fff,
+    0 0 15px #fff,
+    
+    /* Red neon */
+    0 0 20px #E31E24,
+    0 0 35px #E31E24,
+    0 0 50px #E31E24,
+    0 0 65px #E31E24,
+    0 0 80px #E31E24,
+    
+    /* 3D depth */
+    2px 2px 2px rgba(0, 0, 0, 0.8),
+    4px 4px 4px rgba(0, 0, 0, 0.6),
+    6px 6px 8px rgba(0, 0, 0, 0.4),
+    8px 8px 12px rgba(0, 0, 0, 0.3);
+  
+  animation: neon3dFlicker 2s ease-in-out infinite;
+}
+
+/* ===== RETRO ARCADE 3D ===== */
+
+.text-3d-arcade {
+  font-weight: 900;
+  color: #FFD700;
+  text-shadow: 
+    /* Yellow/Gold layers */
+    1px 0px 0px #E31E24,
+    2px 0px 0px #E31E24,
+    3px 0px 0px #E31E24,
+    4px 0px 0px #8B0000,
+    5px 0px 0px #8B0000,
+    6px 0px 2px rgba(0, 0, 0, 0.8),
+    8px 0px 4px rgba(0, 0, 0, 0.6),
+    10px 0px 8px rgba(0, 0, 0, 0.4),
+    12px 0px 12px rgba(0, 0, 0, 0.3),
+    
+    /* Glow */
+    0 0 20px rgba(255, 215, 0, 0.8),
+    0 0 40px rgba(227, 30, 36, 0.5);
+}
+
+/* ===== EXTRUDED 3D (ISOMETRIC) ===== */
+
+.text-3d-extruded {
+  font-weight: 900;
+  position: relative;
+  color: #E31E24;
+  
+  /* Create extrusion effect */
+  text-shadow:
+    /* Extrusion layers (going back in isometric perspective) */
+    1px 1px 0 #cc0000,
+    2px 2px 0 #bb0000,
+    3px 3px 0 #aa0000,
+    4px 4px 0 #990000,
+    5px 5px 0 #880000,
+    6px 6px 0 #770000,
+    7px 7px 0 #660000,
+    8px 8px 0 #550000,
+    9px 9px 0 #440000,
+    10px 10px 0 #330000,
+    
+    /* Shadow underneath */
+    11px 11px 5px rgba(0, 0, 0, 0.8),
+    13px 13px 10px rgba(0, 0, 0, 0.6),
+    15px 15px 15px rgba(0, 0, 0, 0.4),
+    20px 20px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== METALLIC 3D ===== */
+
+.text-3d-metallic {
+  font-weight: 900;
+  background: linear-gradient(
+    135deg,
+    #f0f0f0 0%,
+    #C0C0C0 25%,
+    #808080 50%,
+    #C0C0C0 75%,
+    #f0f0f0 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  
+  text-shadow: 
+    2px 2px 0px rgba(0, 0, 0, 0.6),
+    4px 4px 2px rgba(0, 0, 0, 0.5),
+    6px 6px 4px rgba(0, 0, 0, 0.4),
+    8px 8px 8px rgba(0, 0, 0, 0.3),
+    10px 10px 12px rgba(0, 0, 0, 0.2),
+    
+    /* Metallic highlights */
+    -1px -1px 0px rgba(255, 255, 255, 0.5);
+  
+  animation: metallicShine 3s linear infinite;
+}
+
+/* ===== GLASS 3D EFFECT ===== */
+
+.text-3d-glass {
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  
+  text-shadow: 
+    0 1px 0 rgba(255, 255, 255, 0.8),
+    0 2px 2px rgba(255, 255, 255, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.3),
+    0 5px 15px rgba(0, 0, 0, 0.2);
+  
+  backdrop-filter: blur(10px);
+}
+
+/* ===== ANIMATIONS ===== */
+
+@keyframes text3dPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(227, 30, 36, 0.8));
+  }
+  50% {
+    filter: drop-shadow(0 0 25px rgba(227, 30, 36, 1)) drop-shadow(0 0 40px rgba(227, 30, 36, 0.6));
+  }
+}
+
+@keyframes neon3dFlicker {
+  0%, 100% {
+    opacity: 1;
+    text-shadow: 
+      0 0 5px #fff,
+      0 0 10px #fff,
+      0 0 15px #fff,
+      0 0 20px #E31E24,
+      0 0 35px #E31E24,
+      0 0 50px #E31E24,
+      2px 2px 2px rgba(0, 0, 0, 0.8),
+      4px 4px 4px rgba(0, 0, 0, 0.6);
+  }
+  45%, 55% {
+    opacity: 0.95;
+    text-shadow: 
+      0 0 5px #fff,
+      0 0 10px #fff,
+      0 0 25px #E31E24,
+      0 0 40px #E31E24,
+      2px 2px 2px rgba(0, 0, 0, 0.8);
+  }
+}
+
+@keyframes metallicShine {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ===== UTILITY CLASSES ===== */
+
+.text-uppercase {
+  text-transform: uppercase;
+}
+
+.text-shadow-deep {
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+}
+
+.text-glow-red {
+  text-shadow: 0 0 20px rgba(227, 30, 36, 0.8);
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+}
+
+.text-glow-white {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+}
+
+/* ===== BUTTON 3D EFFECTS ===== */
+
+.btn-3d {
+  position: relative;
+  font-weight: 800;
+  padding: 1rem 2.5rem;
+  border: none;
+  background: linear-gradient(180deg, #E31E24 0%, #8B0000 100%);
+  color: white;
+  text-shadow: 
+    1px 1px 0px rgba(0, 0, 0, 0.5),
+    2px 2px 2px rgba(0, 0, 0, 0.4),
+    3px 3px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    0 5px 0 #660000,
+    0 8px 15px rgba(0, 0, 0, 0.5),
+    0 15px 30px rgba(0, 0, 0, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.btn-3d:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 7px 0 #660000,
+    0 10px 20px rgba(0, 0, 0, 0.6),
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    inset 0 2px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-3d:active {
+  transform: translateY(3px);
+  box-shadow: 
+    0 2px 0 #660000,
+    0 3px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ===== CARD 3D EFFECTS ===== */
+
+.card-3d {
+  position: relative;
+  background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+  border: 2px solid #C0C0C0;
+  box-shadow: 
+    5px 5px 0px rgba(192, 192, 192, 0.3),
+    10px 10px 20px rgba(0, 0, 0, 0.5),
+    15px 15px 40px rgba(0, 0, 0, 0.3),
+    inset 0 0 20px rgba(227, 30, 36, 0.1);
+  transition: all 0.3s ease;
+}
+
+.card-3d:hover {
+  transform: translateY(-5px) translateZ(20px);
+  box-shadow: 
+    8px 8px 0px rgba(227, 30, 36, 0.5),
+    15px 15px 30px rgba(0, 0, 0, 0.6),
+    25px 25px 60px rgba(0, 0, 0, 0.4),
+    inset 0 0 30px rgba(227, 30, 36, 0.2);
+  border-color: #E31E24;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+
+@media (max-width: 768px) {
+  .text-3d-ultra,
+  .text-3d-red,
+  .text-3d-chrome,
+  .text-3d-gold {
+    /* Reduce shadow complexity on mobile */
+    text-shadow: 
+      1px 1px 0px rgba(0, 0, 0, 0.8),
+      2px 2px 0px rgba(0, 0, 0, 0.7),
+      3px 3px 0px rgba(0, 0, 0, 0.6),
+      4px 4px 2px rgba(0, 0, 0, 0.5),
+      6px 6px 4px rgba(0, 0, 0, 0.3),
+      8px 8px 8px rgba(0, 0, 0, 0.2),
+      0 0 20px rgba(227, 30, 36, 0.6);
+  }
+}

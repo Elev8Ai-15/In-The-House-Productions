@@ -502,7 +502,7 @@ app.get('/', (c) => {
                             <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Playlists</li>
                             <li><i class="fas fa-check" style="color: var(--primary-red);"></i> All Event Types</li>
                         </ul>
-                        <button class="btn-red w-full rounded">
+                        <button class="btn-3d w-full rounded text-uppercase">
                             SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
                         </button>
                     </div>
@@ -512,7 +512,7 @@ app.get('/', (c) => {
                         <div class="text-center mb-6">
                             <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
                         </div>
-                        <h2 class="text-4xl font-bold text-center mb-4 neon-text">📸 PHOTOBOOTH</h2>
+                        <h2 class="text-3d-red text-3d-large text-center mb-4 text-uppercase">PHOTOBOOTH</h2>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Fun memories with instant prints and shareable moments
                         </p>
@@ -522,7 +522,7 @@ app.get('/', (c) => {
                             <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Backdrops</li>
                             <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Digital Gallery</li>
                         </ul>
-                        <button class="btn-red w-full rounded">
+                        <button class="btn-3d w-full rounded text-uppercase">
                             SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
                         </button>
                     </div>
@@ -620,6 +620,7 @@ app.get('/dj-services', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>DJ Services - In The House Productions</title>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -719,7 +720,7 @@ app.get('/dj-services', (c) => {
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
-                <h1 class="text-5xl font-bold neon-text mb-2">🎧 SELECT YOUR DJ 🎧</h1>
+                <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">🎧 SELECT YOUR DJ</h1>
                 <p class="text-chrome-silver text-xl">Choose from our professional DJs</p>
                 <p class="text-gray-400 mt-2">
                     <i class="fas fa-info-circle mr-2"></i>
@@ -740,7 +741,7 @@ app.get('/dj-services', (c) => {
                 <!-- DJ Cease -->
                 <div class="dj-card rounded-lg p-6 selected" id="card-dj_cease">
                     <div class="flex justify-between items-start mb-4">
-                        <span class="priority-badge">1ST CHOICE</span>
+                        <span class="text-3d-gold text-sm">1ST CHOICE</span>
                         <div class="heart-container" onclick="selectDJ('dj_cease')">
                             <svg class="heart-icon selected" id="heart-dj_cease" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#E31E24">
                                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -783,7 +784,7 @@ app.get('/dj-services', (c) => {
                 <!-- DJ Elev8 -->
                 <div class="dj-card rounded-lg p-6" id="card-dj_elev8">
                     <div class="flex justify-between items-start mb-4">
-                        <span class="priority-badge">2ND CHOICE</span>
+                        <span class="text-3d-gold text-sm">2ND CHOICE</span>
                         <div class="heart-container" onclick="selectDJ('dj_elev8')">
                             <svg class="heart-icon" id="heart-dj_elev8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#C0C0C0" stroke-width="2">
                                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -826,7 +827,7 @@ app.get('/dj-services', (c) => {
                 <!-- TKOtheDJ -->
                 <div class="dj-card rounded-lg p-6" id="card-tko_the_dj">
                     <div class="flex justify-between items-start mb-4">
-                        <span class="priority-badge">3RD CHOICE</span>
+                        <span class="text-3d-gold text-sm">3RD CHOICE</span>
                         <div class="heart-container" onclick="selectDJ('tko_the_dj')">
                             <svg class="heart-icon" id="heart-tko_the_dj" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#C0C0C0" stroke-width="2">
                                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -993,6 +994,7 @@ app.get('/register', (c) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - In The House Productions</title>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -1016,7 +1018,7 @@ app.get('/register', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-5xl font-bold neon-text mb-2">🎵 REGISTER 🎵</h1>
+            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">🎵 REGISTER</h1>
             <p class="text-chrome-silver text-lg">Join In The House Productions</p>
         </div>
         <div class="form-card rounded-lg p-8">
@@ -1078,6 +1080,7 @@ app.get('/login', (c) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - In The House Productions</title>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -1097,7 +1100,7 @@ app.get('/login', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-5xl font-bold neon-text mb-2">🎵 SIGN IN 🎵</h1>
+            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">🎵 SIGN IN</h1>
             <p class="text-chrome-silver text-lg">Welcome Back!</p>
         </div>
         <div class="form-card rounded-lg p-8">
