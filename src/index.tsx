@@ -938,7 +938,7 @@ app.get('/dj-services', (c) => {
             
             // Navigate to calendar (placeholder for now)
             alert('Calendar booking coming soon! You selected: ' + djData[selectedDJ].name);
-            // window.location.href = '/calendar';
+            window.location.href = "/calendar";
           }
           
           // Check if user is logged in on page load
@@ -953,6 +953,314 @@ app.get('/dj-services', (c) => {
               }
             }
           });
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+
+// Calendar Page - Date Selection
+app.get('/calendar', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Select Date - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <link href="/static/calendar.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --deep-red: #8B0000;
+            --chrome-silver: #C0C0C0;
+            --accent-neon: #FF0040;
+          }
+          
+          body {
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+          }
+        </style>
+    </head>
+    <body class="p-4">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3d-ultra text-3d-huge mb-4 text-uppercase">SELECT YOUR DATE</h1>
+            <p class="text-3d-gold text-3d-small" id="selectedDJDisplay">Loading DJ selection...</p>
+        </div>
+
+        <!-- Calendar Container -->
+        <div class="calendar-container">
+            <!-- Calendar Header with Navigation -->
+            <div class="calendar-header">
+                <button class="calendar-nav-btn" onclick="previousMonth()">
+                    <i class="fas fa-chevron-left"></i> PREV
+                </button>
+                <div class="calendar-month-year text-3d-chrome" id="monthYear">
+                    Loading...
+                </div>
+                <button class="calendar-nav-btn" onclick="nextMonth()">
+                    NEXT <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Calendar will be populated by JavaScript -->
+            </div>
+
+            <!-- Legend -->
+            <div class="calendar-legend">
+                <div class="legend-item">
+                    <div class="legend-box available"></div>
+                    <span>Available</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box booked"></div>
+                    <span>Booked</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box selected"></div>
+                    <span>Selected</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box today"></div>
+                    <span>Today</span>
+                </div>
+            </div>
+
+            <!-- Selected Date Display -->
+            <div id="selectedDateContainer" style="display: none;">
+                <div class="selected-date-display">
+                    <h3 class="text-3d-gold">SELECTED DATE</h3>
+                    <p id="selectedDateText"></p>
+                    <p class="availability-status" id="availabilityStatus"></p>
+                </div>
+                
+                <div class="flex justify-center">
+                    <button class="continue-booking-btn" onclick="continueToEventDetails()">
+                        CONTINUE TO EVENT DETAILS
+                        <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Back Button -->
+        <div class="text-center mt-8">
+            <button class="btn-3d" onclick="window.location.href='/dj-services'">
+                <i class="fas fa-arrow-left mr-2"></i>
+                BACK TO DJ SELECTION
+            </button>
+        </div>
+
+        <script>
+          let currentMonth = new Date().getMonth();
+          let currentYear = new Date().getFullYear();
+          let selectedDate = null;
+          let selectedDJ = null;
+          let availabilityData = {};
+          
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+          const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          
+          // Check authentication and load DJ selection
+          window.addEventListener('DOMContentLoaded', async () => {
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              alert('Please log in to continue booking.');
+              window.location.href = '/login';
+              return;
+            }
+            
+            // Get selected DJ from localStorage
+            selectedDJ = localStorage.getItem('selectedDJ');
+            if (!selectedDJ) {
+              alert('Please select a DJ first.');
+              window.location.href = '/dj-services';
+              return;
+            }
+            
+            // Display selected DJ
+            const djNames = {
+              'dj_cease': 'DJ Cease',
+              'dj_elev8': 'DJ Elev8',
+              'tko_the_dj': 'TKOtheDJ'
+            };
+            document.getElementById('selectedDJDisplay').textContent = 
+              'Booking for: ' + djNames[selectedDJ];
+            
+            // Load calendar
+            await renderCalendar();
+          });
+          
+          async function renderCalendar() {
+            // Update month/year display
+            document.getElementById('monthYear').textContent = 
+              monthNames[currentMonth] + ' ' + currentYear;
+            
+            // Load availability data for current month
+            await loadAvailability();
+            
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            
+            // Add day headers
+            dayNames.forEach(day => {
+              const header = document.createElement('div');
+              header.className = 'calendar-day-header';
+              header.textContent = day;
+              grid.appendChild(header);
+            });
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < firstDay; i++) {
+              const emptyDay = document.createElement('div');
+              emptyDay.className = 'calendar-day empty';
+              grid.appendChild(emptyDay);
+            }
+            
+            // Add days of month
+            for (let day = 1; day <= daysInMonth; day++) {
+              const dayElement = document.createElement('div');
+              const dateStr = \`\${currentYear}-\${String(currentMonth + 1).padStart(2, '0')}-\${String(day).padStart(2, '0')}\`;
+              const cellDate = new Date(currentYear, currentMonth, day);
+              cellDate.setHours(0, 0, 0, 0);
+              
+              dayElement.className = 'calendar-day';
+              
+              // Check if past date
+              if (cellDate < today) {
+                dayElement.classList.add('past');
+              } else {
+                // Check availability
+                const availability = availabilityData[dateStr];
+                if (availability) {
+                  if (availability.available) {
+                    dayElement.classList.add('available');
+                    dayElement.onclick = () => selectDate(dateStr);
+                  } else {
+                    dayElement.classList.add('booked');
+                  }
+                  
+                  // Add capacity indicator
+                  const capacity = document.createElement('div');
+                  capacity.className = 'capacity-indicator';
+                  capacity.textContent = \`\${availability.remainingSlots}/\${availability.capacity}\`;
+                  dayElement.appendChild(capacity);
+                } else {
+                  // Loading or unknown
+                  dayElement.classList.add('loading');
+                }
+              }
+              
+              // Check if today
+              if (cellDate.getTime() === today.getTime()) {
+                dayElement.classList.add('today');
+              }
+              
+              // Check if selected
+              if (selectedDate === dateStr) {
+                dayElement.classList.add('selected');
+              }
+              
+              // Add day number
+              const dayNumber = document.createElement('div');
+              dayNumber.className = 'day-number';
+              dayNumber.textContent = day;
+              dayElement.insertBefore(dayNumber, dayElement.firstChild);
+              
+              grid.appendChild(dayElement);
+            }
+          }
+          
+          async function loadAvailability() {
+            try {
+              // Get availability for current month
+              const provider = selectedDJ;
+              const response = await fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`);
+              const data = await response.json();
+              availabilityData = data;
+            } catch (error) {
+              console.error('Error loading availability:', error);
+              availabilityData = {};
+            }
+          }
+          
+          function selectDate(dateStr) {
+            selectedDate = dateStr;
+            localStorage.setItem('selectedDate', dateStr);
+            
+            // Update calendar display
+            renderCalendar();
+            
+            // Show selected date display
+            const container = document.getElementById('selectedDateContainer');
+            container.style.display = 'block';
+            
+            // Format and display date
+            const date = new Date(dateStr);
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('selectedDateText').textContent = 
+              date.toLocaleDateString('en-US', options);
+            
+            // Show availability status
+            const availability = availabilityData[dateStr];
+            if (availability && availability.available) {
+              document.getElementById('availabilityStatus').textContent = 
+                \`✅ Available - \${availability.remainingSlots} slot(s) remaining\`;
+            }
+            
+            // Scroll to selected date display
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          
+          function previousMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+              currentMonth = 11;
+              currentYear--;
+            }
+            renderCalendar();
+          }
+          
+          function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+              currentMonth = 0;
+              currentYear++;
+            }
+            renderCalendar();
+          }
+          
+          function continueToEventDetails() {
+            if (!selectedDate) {
+              alert('Please select a date first.');
+              return;
+            }
+            
+            // Store all booking data
+            localStorage.setItem('bookingData', JSON.stringify({
+              dj: selectedDJ,
+              date: selectedDate
+            }));
+            
+            // Navigate to event details form
+            window.location.href = '/event-details';
+          }
         </script>
     </body>
     </html>
