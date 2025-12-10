@@ -14,9 +14,13 @@ import {
 
 type Bindings = {
   DB: D1Database
+  JWT_SECRET?: string
 }
 
-const JWT_SECRET = 'your-secret-key-change-in-production-2025'
+// JWT Secret from environment variable (fallback for development)
+const getJWTSecret = (env: any) => {
+  return env.JWT_SECRET || 'dev-secret-key-change-in-production-2025'
+}
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -90,7 +94,7 @@ app.post('/api/auth/register', async (c) => {
       userId: result.meta.last_row_id,
       email: cleanEmail,
       role: 'client'
-    }, JWT_SECRET)
+    }, getJWTSecret(c.env))
     
     return c.json({
       success: true,
@@ -106,7 +110,10 @@ app.post('/api/auth/register', async (c) => {
     }, 201)
     
   } catch (error: any) {
-    console.error('Registration error:', error)
+    // Log only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Registration error:', error)
+    }
     return c.json({ error: 'Registration failed', details: error.message }, 500)
   }
 })
@@ -149,7 +156,7 @@ app.post('/api/auth/login', async (c) => {
       userId: user.id,
       email: user.email,
       role: user.role
-    }, JWT_SECRET)
+    }, getJWTSecret(c.env))
     
     return c.json({
       success: true,
@@ -165,7 +172,10 @@ app.post('/api/auth/login', async (c) => {
     })
     
   } catch (error: any) {
-    console.error('Login error:', error)
+    // Log only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Login error:', error)
+    }
     return c.json({ error: 'Login failed', details: error.message }, 500)
   }
 })
@@ -182,7 +192,7 @@ app.get('/api/auth/me', async (c) => {
     }
     
     const token = authHeader.substring(7)
-    const payload = await verifyToken(token, JWT_SECRET)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
     
     // Get fresh user data
     const user: any = await DB.prepare(`
@@ -739,8 +749,7 @@ app.get('/dj-editor', (c) => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                // Also show in console
-                console.log('DJ Profiles JSON:', jsonStr);
+                // Data exported successfully
                 alert('JSON exported! Check your downloads folder for dj_profiles.json');
             }
             
@@ -1685,7 +1694,7 @@ app.get('/calendar', (c) => {
               const data = await response.json();
               availabilityData = data;
             } catch (error) {
-              console.error('Error loading availability:', error);
+              // Error handled silently - show user-friendly message
               availabilityData = {};
             }
           }
