@@ -229,7 +229,10 @@ app.get('/api/services/dj', (c) => {
       id: 'dj_cease',
       name: 'DJ Cease',
       realName: 'Mike Cecil',
-      bio: 'With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event. Specializing in creating seamless musical journeys, Mike has mastered the art of reading the crowd and delivering exactly what the moment needs. From intimate gatherings to grand celebrations, DJ Cease ensures your event\'s soundtrack is nothing short of perfection.',
+      logo: '/static/dj-cease-logo.png',
+      profilePic: '/static/dj-cease-profile.png',
+      phone: '727.359.4701',
+      bio: 'DJ Cease has 16+ years of DJ experience and knows how to keep any party going! Professional, Reliable, Licensed and Insured.',
       specialties: [
         'Weddings & Special Events',
         'Top 40, Hip-Hop, R&B',
@@ -606,16 +609,19 @@ app.get('/dj-editor', (c) => {
                     id: 'dj_cease',
                     name: 'DJ Cease',
                     realName: 'Mike Cecil',
-                    bio: 'With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event. Specializing in creating seamless musical journeys, Mike has mastered the art of reading the crowd and delivering exactly what the moment needs. From intimate gatherings to grand celebrations, DJ Cease ensures your event\\'s soundtrack is nothing short of perfection.',
+                    logo: '/static/dj-cease-logo.png',
+                    profilePic: '/static/dj-cease-profile.png',
+                    phone: '727.359.4701',
+                    bio: 'DJ Cease has 16+ years of DJ experience and knows how to keep any party going! Professional, Reliable, Licensed and Insured.',
                     specialties: [
                         'Weddings & Special Events',
                         'Top 40, Hip-Hop, R&B',
                         'Crowd Reading & Energy Management',
                         'Custom Playlist Curation',
-                        '20+ Years Experience'
+                        '16+ Years Experience'
                     ],
                     priority: 1,
-                    yearsExp: '20+ Years'
+                    yearsExp: '16+ Years'
                 },
                 dj_elev8: {
                     id: 'dj_elev8',
@@ -1248,12 +1254,15 @@ app.get('/dj-services', (c) => {
                         </div>
                     </div>
                     
-                    <div class="dj-image mb-4">
-                        🎧
+                    <div class="dj-image mb-4 text-center">
+                        <img src="/static/dj-cease-logo.png" alt="DJ Cease Logo" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
                     <h2 class="text-3xl font-bold text-center mb-2 neon-text">DJ CEASE</h2>
                     <p class="text-center text-chrome-silver mb-4">Mike Cecil</p>
+                    <p class="text-center text-gold mb-4">
+                        <i class="fas fa-phone mr-2"></i>727.359.4701
+                    </p>
                     
                     <div class="mb-4">
                         <h3 class="text-lg font-bold mb-2 flex items-center">
@@ -1264,14 +1273,14 @@ app.get('/dj-services', (c) => {
                             <li>• Weddings & Special Events</li>
                             <li>• Top 40, Hip-Hop, R&B</li>
                             <li>• Crowd Reading</li>
-                            <li>• 20+ Years Experience</li>
+                            <li>• 16+ Years Experience</li>
                         </ul>
                     </div>
                     
                     <div class="mb-4">
                         <h3 class="text-lg font-bold mb-2">Bio</h3>
                         <p class="text-sm text-gray-400">
-                            With over 20 years behind the decks, DJ Cease brings unmatched energy and professionalism to every event.
+                            DJ Cease has 16+ years of DJ experience and knows how to keep any party going! Professional, Reliable, Licensed and Insured.
                         </p>
                     </div>
                     
