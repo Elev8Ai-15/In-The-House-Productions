@@ -246,6 +246,7 @@ app.get('/api/services/dj', (c) => {
       id: 'dj_elev8',
       name: 'DJ Elev8',
       realName: 'Brad Powell',
+      profilePic: '/static/dj-elev8-profile.png',
       bio: 'Brad Powell, known as DJ Elev8, elevates every event with his dynamic mixing style and vast musical knowledge. His ability to blend genres seamlessly while maintaining high energy keeps dance floors packed all night long. With a passion for creating memorable experiences, DJ Elev8 has become a sought-after name in the entertainment industry.',
       specialties: [
         'High-Energy Dance Events',
@@ -627,6 +628,7 @@ app.get('/dj-editor', (c) => {
                     id: 'dj_elev8',
                     name: 'DJ Elev8',
                     realName: 'Brad Powell',
+                    profilePic: '/static/dj-elev8-profile.png',
                     bio: 'Brad Powell, known as DJ Elev8, elevates every event with his dynamic mixing style and vast musical knowledge. His ability to blend genres seamlessly while maintaining high energy keeps dance floors packed all night long. With a passion for creating memorable experiences, DJ Elev8 has become a sought-after name in the entertainment industry.',
                     specialties: [
                         'High-Energy Dance Events',
@@ -1300,8 +1302,8 @@ app.get('/dj-services', (c) => {
                         </div>
                     </div>
                     
-                    <div class="dj-image mb-4">
-                        🎵
+                    <div class="dj-image mb-4 text-center">
+                        <img src="/static/dj-elev8-profile.png" alt="DJ Elev8" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
                     <h2 class="text-3xl font-bold text-center mb-2 neon-text">DJ ELEV8</h2>
