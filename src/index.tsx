@@ -261,6 +261,7 @@ app.get('/api/services/dj', (c) => {
       id: 'tko_the_dj',
       name: 'TKOtheDJ',
       realName: 'Joey Tate',
+      profilePic: '/static/tko-the-dj-profile.png',
       bio: 'Joey Tate, performing as TKOtheDJ, delivers knockout performances that leave lasting impressions. Known for his technical precision and creative approach, Joey brings fresh energy to the DJ scene. His versatility across genres and dedication to client satisfaction make him an excellent choice for any celebration.',
       specialties: [
         'Versatile Genre Mixing',
@@ -644,6 +645,7 @@ app.get('/dj-editor', (c) => {
                     id: 'tko_the_dj',
                     name: 'TKOtheDJ',
                     realName: 'Joey Tate',
+                    profilePic: '/static/tko-the-dj-profile.png',
                     bio: 'Joey Tate, performing as TKOtheDJ, delivers knockout performances that leave lasting impressions. Known for his technical precision and creative approach, Joey brings fresh energy to the DJ scene. His versatility across genres and dedication to client satisfaction make him an excellent choice for any celebration.',
                     specialties: [
                         'Versatile Genre Mixing',
@@ -1345,8 +1347,8 @@ app.get('/dj-services', (c) => {
                         </div>
                     </div>
                     
-                    <div class="dj-image mb-4">
-                        🎶
+                    <div class="dj-image mb-4 text-center">
+                        <img src="/static/tko-the-dj-profile.png" alt="TKOtheDJ" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
                     <h2 class="text-3xl font-bold text-center mb-2 neon-text">TKOtheDJ</h2>
