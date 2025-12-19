@@ -985,16 +985,13 @@ app.get('/', (c) => {
         <div class="relative z-10">
             <!-- Header -->
             <header class="py-12 text-center">
-                <h1 class="text-3d-logo-12k text-3d-massive mb-6" style="font-size: clamp(2.5rem, 10vw, 9rem);">
-                    IN THE HOUSE
-                </h1>
-                <h2 class="text-3d-logo-12k-red text-3d-huge mb-6" style="font-size: clamp(2rem, 8vw, 7rem);">
-                    PRODUCTIONS
-                </h2>
+                <div class="mb-8">
+                    <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" class="mx-auto" style="max-width: 90%; height: auto;">
+                </div>
                 <div class="flex justify-center gap-4 my-6">
                     <div class="staff-line w-96"></div>
                 </div>
-                <p class="text-3d-logo-12k-gold text-3xl italic font-80s-body">"Your Event, Our Expertise"</p>
+                <p class="text-2xl text-gold italic" style="color: #FFD700; text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);">"Your Event, Our Expertise"</p>
             </header>
             
             <!-- Service Cards -->
@@ -1271,7 +1268,7 @@ app.get('/dj-services', (c) => {
                     </div>
                     
                     <div class="text-center mb-2">
-                        <img src="/static/dj-cease-name-3d.png" alt="DJ CEASE" class="mx-auto" style="max-width: 250px; height: auto;">
+                        <img src="/static/dj-cease-name-3d.png" alt="DJ CEASE" class="mx-auto" style="max-width: 180px; height: auto;">
                     </div>
                     <p class="text-center text-chrome-silver mb-4">Mike Cecil</p>
                     <p class="text-center text-gold mb-4">
@@ -1319,7 +1316,7 @@ app.get('/dj-services', (c) => {
                     </div>
                     
                     <div class="text-center mb-2">
-                        <img src="/static/dj-elev8-name-3d.png" alt="DJ ELEV8" class="mx-auto" style="max-width: 250px; height: auto;">
+                        <img src="/static/dj-elev8-name-3d.png" alt="DJ ELEV8" class="mx-auto" style="max-width: 180px; height: auto;">
                     </div>
                     <p class="text-center text-chrome-silver mb-4">Brad Powell</p>
                     
@@ -1364,7 +1361,7 @@ app.get('/dj-services', (c) => {
                     </div>
                     
                     <div class="text-center mb-2">
-                        <img src="/static/tko-name-3d.png" alt="TKOTHEDJ" class="mx-auto" style="max-width: 250px; height: auto;">
+                        <img src="/static/tko-name-3d.png" alt="TKOTHEDJ" class="mx-auto" style="max-width: 180px; height: auto;">
                     </div>
                     <p class="text-center text-chrome-silver mb-4">Joey Tate</p>
                     
