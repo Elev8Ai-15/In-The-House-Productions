@@ -3431,4 +3431,330 @@ app.get('/login', (c) => {
 </html>`)
 })
 
+// Contact Us Page
+app.get('/contact', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us - In The House Productions</title>
+    <link href="/static/ultra-3d.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+      :root {
+        --primary-red: #E31E24;
+        --chrome-silver: #C0C0C0;
+        --accent-neon: #FF0040;
+        --deep-black: #000;
+      }
+      body { background: #000; color: #fff; }
+      .contact-card {
+        background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+        border: 3px solid var(--chrome-silver);
+        box-shadow: 0 0 30px rgba(227, 30, 36, 0.4);
+      }
+      .contact-item {
+        background: rgba(227, 30, 36, 0.1);
+        border: 2px solid var(--chrome-silver);
+        transition: all 0.3s ease;
+      }
+      .contact-item:hover {
+        border-color: var(--primary-red);
+        box-shadow: 0 0 20px rgba(227, 30, 36, 0.6);
+        transform: translateY(-3px);
+      }
+      .icon-circle {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, var(--primary-red), var(--accent-neon));
+        border: 2px solid var(--chrome-silver);
+        box-shadow: 0 0 15px rgba(227, 30, 36, 0.5);
+      }
+    </style>
+</head>
+<body class="min-h-screen py-12 px-4">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="max-width: 600px; width: 100%; margin: 0 auto 2rem auto; display: block;">
+            <h2 class="text-2xl text-chrome-silver mb-4">We'd Love to Hear From You!</h2>
+            <p class="text-lg text-gray-400">Get in touch with us for bookings, questions, or just to say hello.</p>
+        </div>
+
+        <!-- Contact Cards -->
+        <div class="grid md:grid-cols-2 gap-6 mb-12">
+            <!-- Phone Contact -->
+            <div class="contact-item rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="icon-circle rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-phone-alt text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Call Us</h3>
+                        <p class="text-chrome-silver text-sm">We're here to help</p>
+                    </div>
+                </div>
+                <a href="tel:+17273594701" class="text-2xl font-bold text-primary-red hover:text-accent-neon transition-colors block">
+                    (727) 359-4701
+                </a>
+                <p class="text-gray-400 text-sm mt-2">Available 7 days a week</p>
+            </div>
+
+            <!-- Email Contact -->
+            <div class="contact-item rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="icon-circle rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-envelope text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Email Us</h3>
+                        <p class="text-chrome-silver text-sm">Quick response guaranteed</p>
+                    </div>
+                </div>
+                <a href="mailto:mike@inthehouseproductions.com" class="text-xl font-bold text-primary-red hover:text-accent-neon transition-colors block break-all">
+                    mike@inthehouseproductions.com
+                </a>
+                <p class="text-gray-400 text-sm mt-2">Response within 24 hours</p>
+            </div>
+
+            <!-- Location -->
+            <div class="contact-item rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="icon-circle rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-map-marker-alt text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Service Area</h3>
+                        <p class="text-chrome-silver text-sm">We come to you</p>
+                    </div>
+                </div>
+                <p class="text-lg text-white font-semibold">Tampa Bay Area</p>
+                <p class="text-gray-400 text-sm mt-2">Serving all of Central Florida</p>
+            </div>
+
+            <!-- Social Media -->
+            <div class="contact-item rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="icon-circle rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-share-alt text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Follow Us</h3>
+                        <p class="text-chrome-silver text-sm">Stay connected</p>
+                    </div>
+                </div>
+                <div class="flex gap-4 mt-4">
+                    <a href="#" class="text-3xl text-chrome-silver hover:text-primary-red transition-colors">
+                        <i class="fab fa-facebook"></i>
+                    </a>
+                    <a href="#" class="text-3xl text-chrome-silver hover:text-primary-red transition-colors">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                    <a href="#" class="text-3xl text-chrome-silver hover:text-primary-red transition-colors">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="contact-card rounded-lg p-8 text-center">
+            <h2 class="text-3xl font-bold text-white mb-4">Ready to Book Your Event?</h2>
+            <p class="text-lg text-chrome-silver mb-6">Let's make your event unforgettable!</p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <a href="/dj-services" class="bg-gradient-to-r from-red-600 to-red-500 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg hover:shadow-red-500/50 transition-all">
+                    <i class="fas fa-music mr-2"></i>Book a DJ
+                </a>
+                <a href="/photobooth" class="bg-gradient-to-r from-yellow-600 to-yellow-500 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg hover:shadow-yellow-500/50 transition-all">
+                    <i class="fas fa-camera mr-2"></i>Book Photobooth
+                </a>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div class="text-center mt-8">
+            <a href="/" class="text-chrome-silver hover:text-white transition-colors text-lg">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Home
+            </a>
+        </div>
+    </div>
+</body>
+</html>`)
+})
+
+// About Us Page
+app.get('/about', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us - In The House Productions</title>
+    <link href="/static/ultra-3d.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+      :root {
+        --primary-red: #E31E24;
+        --chrome-silver: #C0C0C0;
+        --accent-neon: #FF0040;
+        --primary-gold: #FFD700;
+      }
+      body { background: #000; color: #fff; }
+      .about-card {
+        background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+        border: 3px solid var(--chrome-silver);
+        box-shadow: 0 0 30px rgba(227, 30, 36, 0.4);
+      }
+      .stat-box {
+        background: rgba(227, 30, 36, 0.1);
+        border: 2px solid var(--chrome-silver);
+      }
+      .service-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, var(--primary-red), var(--accent-neon));
+        border: 3px solid var(--chrome-silver);
+        box-shadow: 0 0 20px rgba(227, 30, 36, 0.6);
+      }
+    </style>
+</head>
+<body class="min-h-screen py-12 px-4">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="max-width: 700px; width: 100%; margin: 0 auto 2rem auto; display: block;">
+            <h2 class="text-3xl font-bold text-primary-red mb-4">Your Premier Mobile DJ & Photobooth Service</h2>
+            <p class="text-xl text-chrome-silver max-w-3xl mx-auto">
+                Making memories and moving dance floors since day one. We bring the energy, professionalism, and experience to make your event unforgettable.
+            </p>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="grid md:grid-cols-4 gap-6 mb-12">
+            <div class="stat-box rounded-lg p-6 text-center">
+                <div class="text-4xl font-bold text-primary-red mb-2">40+</div>
+                <div class="text-chrome-silver">Years Combined Experience</div>
+            </div>
+            <div class="stat-box rounded-lg p-6 text-center">
+                <div class="text-4xl font-bold text-primary-red mb-2">1000+</div>
+                <div class="text-chrome-silver">Events Completed</div>
+            </div>
+            <div class="stat-box rounded-lg p-6 text-center">
+                <div class="text-4xl font-bold text-primary-red mb-2">3</div>
+                <div class="text-chrome-silver">Professional DJs</div>
+            </div>
+            <div class="stat-box rounded-lg p-6 text-center">
+                <div class="text-4xl font-bold text-primary-red mb-2">2</div>
+                <div class="text-chrome-silver">Photobooth Units</div>
+            </div>
+        </div>
+
+        <!-- Our Story -->
+        <div class="about-card rounded-lg p-8 mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 text-center">
+                <i class="fas fa-heart text-primary-red mr-2"></i>Our Story
+            </h2>
+            <div class="text-lg text-gray-300 space-y-4 max-w-4xl mx-auto">
+                <p>
+                    <strong class="text-white">In The House Productions</strong> was born from a passion for music, celebration, and creating unforgettable moments. With over 40 years of combined experience, our team of professional DJs and event specialists has mastered the art of reading the crowd and keeping the energy high.
+                </p>
+                <p>
+                    Whether it's a wedding, corporate event, birthday party, or any special celebration, we bring the perfect blend of professionalism, personality, and technical expertise to every event. Our state-of-the-art equipment, extensive music library spanning all genres and eras, and commitment to excellence ensure your event is nothing short of spectacular.
+                </p>
+                <p>
+                    From Tampa Bay to Central Florida, we've built our reputation on reliability, versatility, and the ability to turn any event into an experience your guests will talk about for years to come.
+                </p>
+            </div>
+        </div>
+
+        <!-- What We Offer -->
+        <div class="about-card rounded-lg p-8 mb-12">
+            <h2 class="text-3xl font-bold text-white mb-8 text-center">
+                <i class="fas fa-star text-primary-gold mr-2"></i>What We Offer
+            </h2>
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- DJ Services -->
+                <div class="text-center">
+                    <div class="service-icon rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-headphones text-4xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-white mb-3">Professional DJ Services</h3>
+                    <ul class="text-left text-gray-300 space-y-2">
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>3 Experienced DJs to choose from</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Weddings, Corporate Events, Parties</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>All music genres: Top 40, Hip-Hop, R&B, EDM, Rock</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Professional sound and lighting equipment</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>MC services and event coordination</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Custom playlist creation</li>
+                    </ul>
+                </div>
+
+                <!-- Photobooth Services -->
+                <div class="text-center">
+                    <div class="service-icon rounded-full flex items-center justify-center mx-auto mb-4" style="background: linear-gradient(135deg, var(--primary-gold), #FFA500);">
+                        <i class="fas fa-camera text-4xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-white mb-3">Premium Photobooth Rentals</h3>
+                    <ul class="text-left text-gray-300 space-y-2">
+                        <li><i class="fas fa-check text-primary-gold mr-2"></i>2 Professional photobooth units available</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Unlimited prints for your guests</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Custom backdrops and props</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Digital gallery of all photos</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>On-site attendant included</li>
+                        <li><i class="fas fa-check text-primary-red mr-2"></i>Perfect for any event size</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Why Choose Us -->
+        <div class="about-card rounded-lg p-8 mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 text-center">
+                <i class="fas fa-trophy text-primary-gold mr-2"></i>Why Choose Us?
+            </h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <i class="fas fa-user-check text-5xl text-primary-red mb-4"></i>
+                    <h3 class="text-xl font-bold text-white mb-2">Professional & Reliable</h3>
+                    <p class="text-gray-300">Licensed, insured, and always on time. Your event is in good hands.</p>
+                </div>
+                <div class="text-center">
+                    <i class="fas fa-music text-5xl text-primary-red mb-4"></i>
+                    <h3 class="text-xl font-bold text-white mb-2">Extensive Music Library</h3>
+                    <p class="text-gray-300">From classic hits to today's top tracks, we've got every genre covered.</p>
+                </div>
+                <div class="text-center">
+                    <i class="fas fa-smile text-5xl text-primary-red mb-4"></i>
+                    <h3 class="text-xl font-bold text-white mb-2">Crowd Reading Experts</h3>
+                    <p class="text-gray-300">We know how to read the room and keep the energy perfect all night.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="text-center">
+            <h2 class="text-3xl font-bold text-white mb-6">Ready to Make Your Event Unforgettable?</h2>
+            <div class="flex flex-wrap justify-center gap-4 mb-8">
+                <a href="/dj-services" class="bg-gradient-to-r from-red-600 to-red-500 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg hover:shadow-red-500/50 transition-all">
+                    <i class="fas fa-music mr-2"></i>Book a DJ
+                </a>
+                <a href="/photobooth" class="bg-gradient-to-r from-yellow-600 to-yellow-500 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg hover:shadow-yellow-500/50 transition-all">
+                    <i class="fas fa-camera mr-2"></i>Book Photobooth
+                </a>
+                <a href="/contact" class="bg-gradient-to-r from-gray-700 to-gray-600 text-white px-8 py-4 rounded-lg font-bold text-lg hover:shadow-lg hover:shadow-gray-500/50 transition-all">
+                    <i class="fas fa-phone mr-2"></i>Contact Us
+                </a>
+            </div>
+            <a href="/" class="text-chrome-silver hover:text-white transition-colors text-lg">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Home
+            </a>
+        </div>
+    </div>
+</body>
+</html>`)
+})
+
 export default app
