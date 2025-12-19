@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import Stripe from 'stripe'
 import { 
   hashPassword, 
   verifyPassword, 
@@ -923,39 +924,47 @@ app.post('/api/checkout/create-session', async (c) => {
       }
     })
     
-    // In production, you would use actual Stripe API here
-    // For now, return a mock session
+    // Get Stripe API key from environment
     const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
     
     if (!STRIPE_SECRET_KEY) {
       return c.json({
         error: 'Stripe not configured',
-        message: 'Please add STRIPE_SECRET_KEY to environment variables',
+        message: 'Please add STRIPE_SECRET_KEY to .dev.vars file',
+        instructions: 'Get your key from https://dashboard.stripe.com/test/apikeys',
         total,
         items: lineItems
       }, 500)
     }
     
-    // Initialize Stripe (commented out until key is added)
-    // const Stripe = require('stripe')
-    // const stripe = new Stripe(STRIPE_SECRET_KEY)
-    // 
-    // const session = await stripe.checkout.sessions.create({
-    //   payment_method_types: ['card'],
-    //   line_items: lineItems,
-    //   mode: 'payment',
-    //   success_url: `${c.req.url.split('/api')[0]}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    //   cancel_url: `${c.req.url.split('/api')[0]}/checkout/cancel`
-    // })
-    // 
-    // return c.json({ sessionId: session.id, url: session.url })
+    // Initialize Stripe client
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2024-11-20.acacia' as any
+    })
     
-    // Temporary response until Stripe is configured
-    return c.json({
-      message: 'Stripe backend ready',
-      total,
-      items: lineItems,
-      note: 'Add STRIPE_SECRET_KEY to .dev.vars to enable checkout'
+    // Get the base URL for success/cancel redirects
+    const baseUrl = new URL(c.req.url).origin
+    
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/checkout/cancel`,
+      metadata: {
+        items: JSON.stringify(items.map((item: any) => ({
+          serviceId: item.serviceId,
+          eventDate: item.eventDate,
+          hours: item.hours
+        })))
+      }
+    })
+    
+    return c.json({ 
+      sessionId: session.id, 
+      url: session.url,
+      total
     })
     
   } catch (error: any) {
@@ -969,11 +978,61 @@ app.post('/api/webhook/stripe', async (c) => {
     const signature = c.req.header('stripe-signature')
     const body = await c.req.text()
     
-    // Verify webhook signature and process event
-    // This would use Stripe's webhook verification
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    const WEBHOOK_SECRET = c.env?.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET
+    
+    if (!STRIPE_SECRET_KEY) {
+      return c.json({ error: 'Stripe not configured' }, 500)
+    }
+    
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2024-11-20.acacia' as any
+    })
+    
+    let event: Stripe.Event
+    
+    // Verify webhook signature if secret is configured
+    if (WEBHOOK_SECRET && signature) {
+      try {
+        event = stripe.webhooks.constructEvent(body, signature, WEBHOOK_SECRET)
+      } catch (err: any) {
+        console.error('Webhook signature verification failed:', err.message)
+        return c.json({ error: 'Invalid signature' }, 400)
+      }
+    } else {
+      // If no webhook secret, just parse the event (for testing only)
+      event = JSON.parse(body)
+    }
+    
+    // Handle the event
+    switch (event.type) {
+      case 'checkout.session.completed':
+        const session = event.data.object as Stripe.Checkout.Session
+        console.log('Payment successful:', session.id)
+        
+        // TODO: Update booking in database
+        // const metadata = JSON.parse(session.metadata?.items || '[]')
+        // await saveBookingToDatabase(metadata, session.id)
+        
+        break
+        
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object as Stripe.PaymentIntent
+        console.log('Payment intent succeeded:', paymentIntent.id)
+        break
+        
+      case 'payment_intent.payment_failed':
+        const failedPayment = event.data.object as Stripe.PaymentIntent
+        console.error('Payment failed:', failedPayment.id)
+        break
+        
+      default:
+        console.log(`Unhandled event type: ${event.type}`)
+    }
     
     return c.json({ received: true })
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Webhook error:', error.message)
     return c.json({ error: 'Webhook error' }, 400)
   }
 })
