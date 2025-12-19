@@ -1480,7 +1480,7 @@ app.get('/dj-services', (c) => {
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
-                <h1 class="text-3d-logo-12k text-3d-huge mb-2">🎧 SELECT YOUR DJ</h1>
+                <img src="/static/dj-page-hero-3d.png" alt="SELECT YOUR DJ" class="mx-auto mb-4" style="max-width: 600px; height: auto;">
                 <p class="text-chrome-silver text-xl">Choose from our professional DJs</p>
                 <p class="text-gray-400 mt-2">
                     <i class="fas fa-info-circle mr-2"></i>
@@ -2036,7 +2036,7 @@ app.get('/calendar', (c) => {
   `)
 })
 
-// Photobooth Page (placeholder for now)
+// Photobooth Page
 app.get('/photobooth', (c) => {
   return c.html(`
     <!DOCTYPE html>
@@ -2044,20 +2044,275 @@ app.get('/photobooth', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Photobooth - In The House Productions</title>
+        <title>Photobooth Services - In The House Productions</title>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-gold: #FFD700;
+            --chrome-silver: #C0C0C0;
+            --accent-gold: #FFA500;
+          }
+          
+          body {
+            background: #000;
+            color: #fff;
+          }
+          
+          .photobooth-card {
+            background: #000000;
+            border: 3px solid var(--chrome-silver);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            transition: all 0.3s ease;
+          }
+          
+          .photobooth-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 1);
+            border-color: var(--primary-gold);
+          }
+          
+          .photobooth-card.selected {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 40px rgba(255, 165, 0, 1);
+          }
+          
+          .heart-icon {
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 0 5px rgba(192, 192, 192, 0.5));
+          }
+          
+          .heart-icon:hover {
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+          }
+          
+          .heart-icon.selected {
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1));
+            animation: heartPulse 1.5s ease-in-out infinite;
+          }
+          
+          @keyframes heartPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+          
+          .btn-gold {
+            background: var(--primary-gold);
+            color: #000;
+            border: 2px solid var(--chrome-silver);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+          }
+          
+          .btn-gold:hover {
+            background: var(--accent-gold);
+            box-shadow: 0 0 25px rgba(255, 165, 0, 0.8);
+            transform: translateY(-2px);
+          }
+          
+          .photobooth-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 4px solid var(--chrome-silver);
+            background: linear-gradient(135deg, #333, #666);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            margin: 0 auto;
+          }
+        </style>
     </head>
-    <body class="bg-black text-white min-h-screen">
+    <body class="min-h-screen">
         <div class="container mx-auto px-4 py-8">
-            <div class="text-center">
-                <h1 class="text-4xl font-bold mb-4" style="color: #E31E24;">Photobooth Services</h1>
-                <p class="text-2xl text-gray-400 mb-8">Coming Soon: Photobooth Booking</p>
-                <button onclick="window.location.href='/'" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded">
-                    <i class="fas fa-arrow-left mr-2"></i> Back to Home
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <img src="/static/photobooth-page-hero-3d.png" alt="SELECT YOUR PHOTOBOOTH" class="mx-auto mb-4" style="max-width: 600px; height: auto;">
+                <p class="text-chrome-silver text-xl">Choose from our professional photobooths</p>
+                <p class="text-gray-400 mt-2">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Unit 1 is automatically selected. Click ❤️ to choose Unit 2 instead.
+                </p>
+            </div>
+            
+            <!-- Photobooth Selection Info -->
+            <div id="selectionInfo" class="text-center mb-8 p-4 rounded" style="background: rgba(255, 215, 0, 0.1); border: 2px solid var(--primary-gold);">
+                <p class="text-lg">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span id="selectedPhotoboothName">Photobooth Unit 1 (Maria Cecil)</span> will be at your event!
+                </p>
+            </div>
+            
+            <!-- Photobooth Cards -->
+            <div class="grid md:grid-cols-2 gap-6 mb-8 max-w-4xl mx-auto">
+                <!-- Unit 1 - Maria -->
+                <div class="photobooth-card rounded-lg p-6 selected" id="card-unit1">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-3d-gold text-sm">1ST CHOICE</span>
+                        <div class="heart-container" onclick="selectPhotobooth('unit1')">
+                            <svg class="heart-icon selected" id="heart-unit1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FFD700">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="photobooth-image mb-4 text-center">
+                        <img src="/static/photobooth-profile.png" alt="Maria Cecil" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-center mb-2 text-3d-gold">UNIT 1</h2>
+                    <p class="text-center text-chrome-silver mb-4">Operated by Maria Cecil</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2 flex items-center">
+                            <i class="fas fa-star mr-2" style="color: var(--primary-gold);"></i>
+                            Features
+                        </h3>
+                        <ul class="text-sm space-y-1 text-gray-300">
+                            <li>• Professional Photobooth Unit</li>
+                            <li>• Unlimited High-Quality Prints</li>
+                            <li>• Digital Gallery Access</li>
+                            <li>• Custom Backdrops Available</li>
+                            <li>• Props Package Included</li>
+                            <li>• On-Site Attendant</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">About Maria</h3>
+                        <p class="text-sm text-gray-400">
+                            Maria brings warmth and professionalism to every event, ensuring guests have a fantastic photobooth experience with lasting memories.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Unit 2 - Cora -->
+                <div class="photobooth-card rounded-lg p-6" id="card-unit2">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-3d-gold text-sm">2ND CHOICE</span>
+                        <div class="heart-container" onclick="selectPhotobooth('unit2')">
+                            <svg class="heart-icon" id="heart-unit2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#C0C0C0" stroke-width="2">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="photobooth-image mb-4 text-center">
+                        <img src="/static/photobooth-profile.png" alt="Cora Scarborough" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-center mb-2 text-3d-gold">UNIT 2</h2>
+                    <p class="text-center text-chrome-silver mb-4">Operated by Cora Scarborough</p>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2 flex items-center">
+                            <i class="fas fa-star mr-2" style="color: var(--primary-gold);"></i>
+                            Features
+                        </h3>
+                        <ul class="text-sm space-y-1 text-gray-300">
+                            <li>• Professional Photobooth Unit</li>
+                            <li>• Unlimited High-Quality Prints</li>
+                            <li>• Digital Gallery Access</li>
+                            <li>• Custom Backdrops Available</li>
+                            <li>• Props Package Included</li>
+                            <li>• Social Media Integration</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">About Cora</h3>
+                        <p class="text-sm text-gray-400">
+                            Cora's attention to detail and engaging personality make her photobooth service a highlight of any celebration.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="text-center space-x-4">
+                <button onclick="window.location.href='/'" class="bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded font-bold">
+                    <i class="fas fa-arrow-left mr-2"></i> Back
+                </button>
+                <button onclick="continueToCalendar()" class="btn-gold px-8 py-3 rounded font-bold text-lg">
+                    <i class="fas fa-calendar-alt mr-2"></i> CONTINUE TO CALENDAR
                 </button>
             </div>
         </div>
+        
+        <script>
+          let selectedPhotobooth = 'unit1'; // Default selection
+          
+          const photoboothData = {
+            unit1: {
+              name: 'Photobooth Unit 1 (Maria Cecil)',
+              operator: 'Maria Cecil'
+            },
+            unit2: {
+              name: 'Photobooth Unit 2 (Cora Scarborough)',
+              operator: 'Cora Scarborough'
+            }
+          };
+          
+          function selectPhotobooth(unit) {
+            selectedPhotobooth = unit;
+            
+            // Update all cards
+            ['unit1', 'unit2'].forEach(id => {
+              const card = document.getElementById('card-' + id);
+              const heart = document.getElementById('heart-' + id);
+              
+              if (id === unit) {
+                card.classList.add('selected');
+                heart.classList.add('selected');
+                heart.setAttribute('fill', '#FFD700');
+              } else {
+                card.classList.remove('selected');
+                heart.classList.remove('selected');
+                heart.setAttribute('fill', 'none');
+              }
+            });
+            
+            // Update selection info
+            document.getElementById('selectedPhotoboothName').textContent = photoboothData[unit].name;
+          }
+          
+          function continueToCalendar() {
+            // Store selected photobooth in localStorage
+            localStorage.setItem('selectedPhotobooth', selectedPhotobooth);
+            localStorage.setItem('serviceType', 'photobooth');
+            
+            // Check if user is logged in
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              alert('Please log in to continue booking');
+              window.location.href = '/login';
+              return;
+            }
+            
+            // Navigate to calendar
+            alert('Calendar booking coming soon! You selected: ' + photoboothData[selectedPhotobooth].name);
+            window.location.href = "/calendar-photobooth";
+          }
+          
+          // Check if user is logged in on page load
+          window.addEventListener('DOMContentLoaded', () => {
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              const shouldLogin = confirm('You need to be logged in to book a photobooth. Would you like to log in now?');
+              if (shouldLogin) {
+                window.location.href = '/login';
+              } else {
+                window.location.href = '/';
+              }
+            }
+          });
+        </script>
     </body>
     </html>
   `)
