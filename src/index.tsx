@@ -16,6 +16,11 @@ import {
 type Bindings = {
   DB: D1Database
   JWT_SECRET?: string
+  STRIPE_SECRET_KEY?: string
+  RESEND_API_KEY?: string
+  TWILIO_ACCOUNT_SID?: string
+  TWILIO_AUTH_TOKEN?: string
+  TWILIO_PHONE_NUMBER?: string
 }
 
 // JWT Secret from environment variable (fallback for development)
@@ -1037,22 +1042,13 @@ app.post('/api/webhook/stripe', async (c) => {
   }
 })
 
-// Check availability for a specific date and provider
+// Check availability for a specific date, time and provider (DJ double-booking logic)
 app.post('/api/availability/check', async (c) => {
-  const { provider, date } = await c.req.json()
+  const { provider, date, startTime, endTime } = await c.req.json()
   const { DB } = c.env
   
   try {
-    // Check bookings
-    const bookings = await DB.prepare(`
-      SELECT COUNT(*) as count 
-      FROM bookings 
-      WHERE service_provider = ? 
-      AND event_date = ? 
-      AND status != 'cancelled'
-    `).bind(provider, date).first()
-    
-    // Check manual blocks
+    // Check manual blocks first
     const blocks = await DB.prepare(`
       SELECT COUNT(*) as count 
       FROM availability_blocks 
@@ -1060,39 +1056,198 @@ app.post('/api/availability/check', async (c) => {
       AND block_date = ?
     `).bind(provider, date).first()
     
-    let available = true
-    let reason = ''
-    
     if (blocks && blocks.count > 0) {
-      available = false
-      reason = 'Date manually blocked'
-    } else if (provider.startsWith('photobooth')) {
-      available = bookings && bookings.count < 2
-      if (!available) reason = 'Both photobooth units booked'
-    } else {
-      available = bookings && bookings.count === 0
-      if (!available) reason = 'DJ already booked on this date'
+      return c.json({ 
+        available: false, 
+        reason: 'Date manually blocked',
+        canDoubleBook: false
+      })
     }
     
-    return c.json({ available, reason })
-  } catch (error) {
-    return c.json({ error: 'Failed to check availability' }, 500)
+    // Photobooth logic: 2 units, 1 booking per unit per day
+    if (provider.startsWith('photobooth')) {
+      const bookings = await DB.prepare(`
+        SELECT COUNT(*) as count 
+        FROM bookings 
+        WHERE service_type = 'photobooth'
+        AND event_date = ? 
+        AND status != 'cancelled'
+      `).bind(date).first()
+      
+      const available = bookings && bookings.count < 2
+      return c.json({ 
+        available,
+        reason: available ? '' : 'Both photobooth units booked',
+        canDoubleBook: false,
+        bookingsCount: bookings?.count || 0,
+        maxBookings: 2
+      })
+    }
+    
+    // DJ logic: Check for double-booking possibility
+    const existingBookings = await DB.prepare(`
+      SELECT id, event_date, start_time, end_time
+      FROM booking_time_slots
+      WHERE service_provider = ?
+      AND event_date = ?
+      AND status != 'cancelled'
+      ORDER BY start_time ASC
+    `).bind(provider, date).all()
+    
+    const bookingsCount = existingBookings.results?.length || 0
+    
+    // No bookings = fully available
+    if (bookingsCount === 0) {
+      return c.json({ 
+        available: true,
+        canDoubleBook: true,
+        bookingsCount: 0,
+        maxBookings: 2
+      })
+    }
+    
+    // Already has 2 bookings = not available
+    if (bookingsCount >= 2) {
+      return c.json({ 
+        available: false,
+        reason: 'DJ already has maximum 2 bookings on this date',
+        canDoubleBook: false,
+        bookingsCount,
+        maxBookings: 2
+      })
+    }
+    
+    // Has 1 booking: check if double-booking is possible
+    const existing = existingBookings.results[0] as any
+    const existingStart = parseTime(existing.start_time)
+    const existingEnd = parseTime(existing.end_time)
+    const newStart = parseTime(startTime)
+    const newEnd = parseTime(endTime)
+    
+    // Rule 1: If existing booking starts after 11:00 AM, entire day is blocked
+    if (existingStart >= parseTime('11:00')) {
+      return c.json({
+        available: false,
+        reason: 'DJ has afternoon/evening event (starts after 11:00 AM). Full day blocked.',
+        canDoubleBook: false,
+        bookingsCount: 1,
+        maxBookings: 2,
+        existingBooking: {
+          startTime: existing.start_time,
+          endTime: existing.end_time
+        }
+      })
+    }
+    
+    // Rule 2: If new booking starts after 11:00 AM, check if there's time after existing
+    if (newStart >= parseTime('11:00')) {
+      // Need 3-hour gap after existing booking ends
+      const gapHours = (newStart - existingEnd) / 60
+      if (gapHours >= 3) {
+        return c.json({
+          available: true,
+          canDoubleBook: true,
+          bookingsCount: 1,
+          maxBookings: 2,
+          message: 'Double-booking allowed: 3+ hour gap between events',
+          existingBooking: {
+            startTime: existing.start_time,
+            endTime: existing.end_time
+          }
+        })
+      } else {
+        return c.json({
+          available: false,
+          reason: `Insufficient time gap: ${gapHours.toFixed(1)} hours (need 3 hours minimum)`,
+          canDoubleBook: false,
+          bookingsCount: 1,
+          maxBookings: 2,
+          existingBooking: {
+            startTime: existing.start_time,
+            endTime: existing.end_time
+          }
+        })
+      }
+    }
+    
+    // Rule 3: Both early bookings (before 11 AM) - check 3-hour gap
+    const gapHours = (newStart - existingEnd) / 60
+    if (gapHours >= 3) {
+      return c.json({
+        available: true,
+        canDoubleBook: true,
+        bookingsCount: 1,
+        maxBookings: 2,
+        message: 'Double-booking allowed: 3+ hour gap between early events',
+        existingBooking: {
+          startTime: existing.start_time,
+          endTime: existing.end_time
+        }
+      })
+    }
+    
+    return c.json({
+      available: false,
+      reason: 'Time conflict with existing booking',
+      canDoubleBook: false,
+      bookingsCount: 1,
+      maxBookings: 2,
+      existingBooking: {
+        startTime: existing.start_time,
+        endTime: existing.end_time
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Availability check error:', error)
+    return c.json({ error: 'Failed to check availability', details: error.message }, 500)
   }
 })
 
+// Helper function to parse time (HH:MM format) to minutes since midnight
+function parseTime(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return hours * 60 + minutes
+}
+
 // Get availability for a month
 app.get('/api/availability/:provider/:year/:month', async (c) => {
-  const { provider, year, month } = c.param()
+  const provider = c.req.param('provider')
+  const year = c.req.param('year')
+  const month = c.req.param('month')
   const { DB } = c.env
   
   try {
     const startDate = `${year}-${month.padStart(2, '0')}-01`
     const endDate = `${year}-${month.padStart(2, '0')}-31`
     
-    // Get all bookings for this month
-    const bookings = await DB.prepare(`
-      SELECT event_date, COUNT(*) as count
-      FROM bookings
+    // For photobooths, check combined bookings
+    if (provider.startsWith('photobooth')) {
+      const bookings = await DB.prepare(`
+        SELECT event_date, COUNT(*) as count
+        FROM bookings
+        WHERE service_type = 'photobooth'
+        AND event_date BETWEEN ? AND ?
+        AND status != 'cancelled'
+        GROUP BY event_date
+      `).bind(startDate, endDate).all()
+      
+      const bookedDates = (bookings.results || [])
+        .filter((b: any) => b.count >= 2)
+        .map((b: any) => b.event_date)
+      
+      const partiallyBookedDates = (bookings.results || [])
+        .filter((b: any) => b.count === 1)
+        .map((b: any) => b.event_date)
+      
+      return c.json({ bookedDates, partiallyBookedDates, blockedDates: [] })
+    }
+    
+    // For DJs, check individual bookings and time slots
+    const timeSlots = await DB.prepare(`
+      SELECT event_date, COUNT(*) as count, 
+             MAX(CASE WHEN start_time >= '11:00' THEN 1 ELSE 0 END) as has_afternoon
+      FROM booking_time_slots
       WHERE service_provider = ?
       AND event_date BETWEEN ? AND ?
       AND status != 'cancelled'
@@ -1107,14 +1262,277 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
       AND block_date BETWEEN ? AND ?
     `).bind(provider, startDate, endDate).all()
     
-    const bookedDates = bookings.results?.map((b: any) => b.event_date) || []
+    const bookedDates = (timeSlots.results || [])
+      .filter((slot: any) => slot.count >= 2 || slot.has_afternoon === 1)
+      .map((slot: any) => slot.event_date)
+    
+    const partiallyBookedDates = (timeSlots.results || [])
+      .filter((slot: any) => slot.count === 1 && slot.has_afternoon === 0)
+      .map((slot: any) => slot.event_date)
+    
     const blockedDates = blocks.results?.map((b: any) => b.block_date) || []
     
-    return c.json({ bookedDates, blockedDates })
-  } catch (error) {
-    return c.json({ error: 'Failed to fetch availability' }, 500)
+    return c.json({ bookedDates, partiallyBookedDates, blockedDates })
+  } catch (error: any) {
+    console.error('Fetch availability error:', error)
+    return c.json({ error: 'Failed to fetch availability', details: error.message }, 500)
   }
 })
+
+// Create a new booking
+app.post('/api/bookings/create', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const JWT_SECRET = c.env.JWT_SECRET
+    const payload = await verifyToken(token, JWT_SECRET)
+    
+    const { DB, RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = c.env
+    const bookingData = await c.req.json()
+    
+    // Validate required fields
+    const required = ['serviceType', 'serviceProvider', 'eventDate', 'startTime', 'endTime', 'eventDetails']
+    for (const field of required) {
+      if (!bookingData[field]) {
+        return c.json({ error: `Missing required field: ${field}` }, 400)
+      }
+    }
+    
+    // Check availability one more time
+    const availCheck = await fetch(`${c.req.url.replace('/bookings/create', '/availability/check')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: bookingData.serviceProvider,
+        date: bookingData.eventDate,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime
+      })
+    })
+    
+    const availResult = await availCheck.json()
+    if (!availResult.available) {
+      return c.json({ error: 'Time slot no longer available', reason: availResult.reason }, 409)
+    }
+    
+    // Calculate pricing
+    const service = servicePricing[bookingData.serviceType as keyof typeof servicePricing]
+    if (!service) {
+      return c.json({ error: 'Invalid service type' }, 400)
+    }
+    
+    const hours = calculateHours(bookingData.startTime, bookingData.endTime)
+    const totalPrice = service.basePrice + (service.hourlyRate * hours)
+    
+    // Insert booking
+    const bookingResult = await DB.prepare(`
+      INSERT INTO bookings (
+        user_id, service_type, service_provider, event_date,
+        total_price, payment_status, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(
+      payload.userId,
+      bookingData.serviceType,
+      bookingData.serviceProvider,
+      bookingData.eventDate,
+      totalPrice,
+      'pending',
+      'pending'
+    ).run()
+    
+    const bookingId = bookingResult.meta.last_row_id
+    
+    // Insert time slot for DJ bookings
+    if (!bookingData.serviceType.startsWith('photobooth')) {
+      await DB.prepare(`
+        INSERT INTO booking_time_slots (
+          booking_id, service_provider, event_date,
+          start_time, end_time, status
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        bookingId,
+        bookingData.serviceProvider,
+        bookingData.eventDate,
+        bookingData.startTime,
+        bookingData.endTime,
+        'confirmed'
+      ).run()
+    }
+    
+    // Insert event details
+    const eventDetails = bookingData.eventDetails
+    const eventResult = await DB.prepare(`
+      INSERT INTO event_details (
+        booking_id, event_name, event_type, venue_name,
+        venue_address, venue_city, venue_state, venue_zip,
+        expected_guests, special_requests, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(
+      bookingId,
+      eventDetails.eventName || '',
+      eventDetails.eventType || '',
+      eventDetails.venueName || '',
+      eventDetails.venueAddress || '',
+      eventDetails.venueCity || '',
+      eventDetails.venueState || '',
+      eventDetails.venueZip || '',
+      eventDetails.expectedGuests || 0,
+      eventDetails.specialRequests || ''
+    ).run()
+    
+    // Send notifications
+    try {
+      await sendBookingNotifications(c.env, {
+        bookingId,
+        userId: payload.userId,
+        serviceType: bookingData.serviceType,
+        serviceProvider: bookingData.serviceProvider,
+        eventDate: bookingData.eventDate,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        eventDetails,
+        totalPrice
+      })
+    } catch (notifError) {
+      console.error('Notification error:', notifError)
+      // Don't fail booking if notifications fail
+    }
+    
+    return c.json({
+      success: true,
+      bookingId,
+      message: 'Booking created successfully',
+      totalPrice,
+      nextStep: 'payment'
+    })
+    
+  } catch (error: any) {
+    console.error('Booking creation error:', error)
+    return c.json({ error: 'Failed to create booking', details: error.message }, 500)
+  }
+})
+
+// Helper: Calculate hours between times
+function calculateHours(startTime: string, endTime: string): number {
+  const start = parseTime(startTime)
+  const end = parseTime(endTime)
+  return Math.ceil((end - start) / 60)
+}
+
+// Helper: Send booking notifications (email + SMS)
+async function sendBookingNotifications(env: any, booking: any) {
+  const { DB, RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = env
+  
+  // Get user info
+  const user = await DB.prepare(`
+    SELECT full_name, email, phone FROM users WHERE id = ?
+  `).bind(booking.userId).first()
+  
+  // Get provider contact info
+  const provider = await DB.prepare(`
+    SELECT provider_name, email, phone FROM provider_contacts WHERE provider_id = ?
+  `).bind(booking.serviceProvider).first()
+  
+  if (!user || !provider) {
+    throw new Error('User or provider not found')
+  }
+  
+  // Initialize Resend for emails
+  const { Resend } = await import('resend')
+  const resend = new Resend(RESEND_API_KEY)
+  
+  // Use Twilio REST API directly via fetch to avoid large dependency
+  const twilioAuth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')
+  
+  // Format event details
+  const eventInfo = `
+Event: ${booking.eventDetails.eventName || 'N/A'}
+Type: ${booking.eventDetails.eventType || 'N/A'}
+Date: ${booking.eventDate}
+Time: ${booking.startTime} - ${booking.endTime}
+Venue: ${booking.eventDetails.venueName || 'N/A'}
+Address: ${booking.eventDetails.venueAddress}, ${booking.eventDetails.venueCity}, ${booking.eventDetails.venueState} ${booking.eventDetails.venueZip}
+Guests: ${booking.eventDetails.expectedGuests || 'N/A'}
+Price: $${booking.totalPrice}
+  `.trim()
+  
+  // Send email to client
+  await resend.emails.send({
+    from: 'In The House Productions <noreply@inthehouseproductions.com>',
+    to: user.email,
+    subject: `Booking Confirmation - ${booking.eventDetails.eventName}`,
+    html: `
+      <h2>Booking Confirmed!</h2>
+      <p>Hi ${user.full_name},</p>
+      <p>Your booking has been confirmed. Here are the details:</p>
+      <pre>${eventInfo}</pre>
+      <p><strong>Provider:</strong> ${provider.provider_name}</p>
+      <p><strong>Provider Contact:</strong> ${provider.phone}</p>
+      <p>We're excited to make your event amazing!</p>
+      <p>- In The House Productions Team</p>
+    `
+  })
+  
+  // Send email to provider
+  await resend.emails.send({
+    from: 'In The House Productions <noreply@inthehouseproductions.com>',
+    to: provider.email,
+    subject: `New Booking - ${booking.eventDate}`,
+    html: `
+      <h2>New Booking Alert!</h2>
+      <p>Hi ${provider.provider_name},</p>
+      <p>You have a new booking:</p>
+      <pre>${eventInfo}</pre>
+      <p><strong>Client:</strong> ${user.full_name}</p>
+      <p><strong>Client Phone:</strong> ${user.phone}</p>
+      <p><strong>Client Email:</strong> ${user.email}</p>
+      <p>Please confirm receipt and reach out to the client to finalize details.</p>
+      <p>Booking ID: ${booking.bookingId}</p>
+    `
+  })
+  
+  // Send SMS to provider via Twilio REST API
+  const smsBody = `NEW BOOKING: ${booking.eventDetails.eventName} on ${booking.eventDate} at ${booking.startTime}. Client: ${user.full_name} (${user.phone}). Check email for details.`
+  
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${twilioAuth}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      From: TWILIO_PHONE_NUMBER,
+      To: provider.phone,
+      Body: smsBody
+    })
+  })
+  
+  // Log notifications
+  await DB.prepare(`
+    INSERT INTO notifications (
+      booking_id, recipient_type, recipient_id,
+      notification_type, channel, status, sent_at
+    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `).bind(booking.bookingId, 'client', booking.userId, 'booking_confirmed', 'email', 'sent').run()
+  
+  await DB.prepare(`
+    INSERT INTO notifications (
+      booking_id, recipient_type, recipient_id,
+      notification_type, channel, status, sent_at
+    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `).bind(booking.bookingId, 'provider', booking.serviceProvider, 'booking_confirmed', 'email', 'sent').run()
+  
+  await DB.prepare(`
+    INSERT INTO notifications (
+      booking_id, recipient_type, recipient_id,
+      notification_type, channel, status, sent_at
+    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `).bind(booking.bookingId, 'provider', booking.serviceProvider, 'booking_confirmed', 'sms', 'sent').run()
+}
 
 // Landing Page
 app.get('/', (c) => {
