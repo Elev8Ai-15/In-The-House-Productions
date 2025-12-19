@@ -1322,8 +1322,15 @@ app.post('/api/bookings/create', async (c) => {
     }
     
     const token = authHeader.substring(7)
-    const JWT_SECRET = c.env.JWT_SECRET
-    const payload = await verifyToken(token, JWT_SECRET)
+    const JWT_SECRET = getJWTSecret(c.env)
+    
+    let payload
+    try {
+      payload = await verifyToken(token, JWT_SECRET)
+    } catch (tokenError) {
+      console.error('Token verification failed:', tokenError)
+      return c.json({ error: 'Invalid or expired token. Please log in again.' }, 401)
+    }
     
     const { DB, RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = c.env
     const bookingData = await c.req.json()
@@ -2781,6 +2788,14 @@ app.get('/event-details', (c) => {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>PROCESSING...';
             
             try {
+              // Check if user is logged in
+              const authToken = localStorage.getItem('authToken');
+              if (!authToken) {
+                alert('Please log in to continue with your booking.');
+                window.location.href = '/login';
+                return;
+              }
+              
               // Collect form data
               const eventDetails = {
                 eventName: document.getElementById('eventName').value,
@@ -2798,7 +2813,6 @@ app.get('/event-details', (c) => {
               const endTime = document.getElementById('endTime').value;
               
               // Create booking
-              const authToken = localStorage.getItem('authToken');
               const response = await fetch('/api/bookings/create', {
                 method: 'POST',
                 headers: {
@@ -2818,6 +2832,14 @@ app.get('/event-details', (c) => {
               const result = await response.json();
               
               if (!response.ok) {
+                // If token is invalid/expired, clear storage and redirect to login
+                if (result.error && (result.error.includes('token') || result.error.includes('Token'))) {
+                  localStorage.removeItem('authToken');
+                  localStorage.removeItem('user');
+                  alert('Your session has expired. Please log in again.');
+                  window.location.href = '/login';
+                  return;
+                }
                 throw new Error(result.error || 'Booking failed');
               }
               
