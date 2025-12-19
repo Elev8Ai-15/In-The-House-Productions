@@ -1249,7 +1249,7 @@ app.get('/', (c) => {
                             <i class="fas fa-headphones-alt text-8xl" style="color: var(--primary-red);"></i>
                         </div>
                         <div class="text-center mb-4">
-                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" class="mx-auto" style="max-width: 300px; height: auto;">
+                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" class="mx-auto" style="max-width: 400px; height: auto;">
                         </div>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Professional DJs spinning the perfect soundtrack for your special event
@@ -1271,7 +1271,7 @@ app.get('/', (c) => {
                             <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
                         </div>
                         <div class="text-center mb-4">
-                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" class="mx-auto" style="max-width: 300px; height: auto;">
+                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" class="mx-auto" style="max-width: 400px; height: auto;">
                         </div>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Fun memories with instant prints and shareable moments
