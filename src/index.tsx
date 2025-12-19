@@ -2212,7 +2212,7 @@ app.get('/calendar', (c) => {
     <body class="p-4">
         <!-- Header -->
         <div class="text-center mb-8">
-            <h1 class="text-3d-ultra text-3d-huge mb-4 text-uppercase">SELECT YOUR DATE</h1>
+            <img src="/static/calendar-hero-3d.png" alt="SELECT YOUR DATE" style="max-width: 600px; width: 100%; margin: 0 auto; display: block;" class="mb-4">
             <p class="text-3d-gold text-3d-small" id="selectedDJDisplay">Loading DJ selection...</p>
         </div>
 
@@ -2606,10 +2606,7 @@ app.get('/event-details', (c) => {
         <div class="form-container">
             <!-- Header -->
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold mb-2" style="color: var(--primary-red);">
-                    <i class="fas fa-calendar-check mr-2"></i>
-                    EVENT DETAILS
-                </h1>
+                <img src="/static/event-details-hero-3d.png" alt="EVENT DETAILS" style="max-width: 600px; width: 100%; margin: 0 auto; display: block;" class="mb-2">
                 <p class="text-chrome-silver">Tell us about your event</p>
             </div>
             
@@ -3299,7 +3296,7 @@ app.get('/register', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">REGISTER</h1>
+            <img src="/static/register-hero-3d.png" alt="REGISTER" style="max-width: 500px; width: 100%; margin: 0 auto 1rem auto; display: block;">
             <p class="text-chrome-silver text-lg">Join In The House Productions</p>
         </div>
         <div class="form-card rounded-lg p-8">
@@ -3381,7 +3378,7 @@ app.get('/login', (c) => {
 <body class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <h1 class="text-3d-ultra text-3d-huge mb-2 text-uppercase">SIGN IN</h1>
+            <img src="/static/login-hero-3d.png" alt="SIGN IN" style="max-width: 500px; width: 100%; margin: 0 auto 1rem auto; display: block;">
             <p class="text-chrome-silver text-lg">Welcome Back!</p>
         </div>
         <div class="form-card rounded-lg p-8">
