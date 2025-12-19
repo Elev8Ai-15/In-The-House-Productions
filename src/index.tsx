@@ -1005,7 +1005,9 @@ app.get('/', (c) => {
                         <div class="text-center mb-6">
                             <i class="fas fa-headphones-alt text-8xl" style="color: var(--primary-red);"></i>
                         </div>
-                        <h2 class="text-3d-logo-80s-neon text-3d-large text-center mb-4">DJ SERVICES</h2>
+                        <div class="text-center mb-4">
+                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" class="mx-auto" style="max-width: 300px; height: auto;">
+                        </div>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Professional DJs spinning the perfect soundtrack for your special event
                         </p>
@@ -1025,7 +1027,9 @@ app.get('/', (c) => {
                         <div class="text-center mb-6">
                             <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
                         </div>
-                        <h2 class="text-3d-red text-3d-large text-center mb-4 text-uppercase">PHOTOBOOTH</h2>
+                        <div class="text-center mb-4">
+                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" class="mx-auto" style="max-width: 300px; height: auto;">
+                        </div>
                         <p class="text-chrome-silver text-center mb-6 text-lg">
                             Fun memories with instant prints and shareable moments
                         </p>
@@ -1266,7 +1270,9 @@ app.get('/dj-services', (c) => {
                         <img src="/static/dj-cease-logo.png" alt="DJ Cease Logo" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
-                    <h2 class="text-3d-logo-80s-neon text-3d-medium text-center mb-2">DJ CEASE</h2>
+                    <div class="text-center mb-2">
+                        <img src="/static/dj-cease-name-3d.png" alt="DJ CEASE" class="mx-auto" style="max-width: 250px; height: auto;">
+                    </div>
                     <p class="text-center text-chrome-silver mb-4">Mike Cecil</p>
                     <p class="text-center text-gold mb-4">
                         <i class="fas fa-phone mr-2"></i>727.359.4701
@@ -1312,7 +1318,9 @@ app.get('/dj-services', (c) => {
                         <img src="/static/dj-elev8-profile.png" alt="DJ Elev8" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
-                    <h2 class="text-3d-logo-80s-neon text-3d-medium text-center mb-2">DJ ELEV8</h2>
+                    <div class="text-center mb-2">
+                        <img src="/static/dj-elev8-name-3d.png" alt="DJ ELEV8" class="mx-auto" style="max-width: 250px; height: auto;">
+                    </div>
                     <p class="text-center text-chrome-silver mb-4">Brad Powell</p>
                     
                     <div class="mb-4">
@@ -1355,7 +1363,9 @@ app.get('/dj-services', (c) => {
                         <img src="/static/tko-the-dj-profile.png" alt="TKOtheDJ" class="mx-auto" style="max-width: 200px; border-radius: 10px;">
                     </div>
                     
-                    <h2 class="text-3d-logo-80s-neon text-3d-medium text-center mb-2">TKOTHEDJ</h2>
+                    <div class="text-center mb-2">
+                        <img src="/static/tko-name-3d.png" alt="TKOTHEDJ" class="mx-auto" style="max-width: 250px; height: auto;">
+                    </div>
                     <p class="text-center text-chrome-silver mb-4">Joey Tate</p>
                     
                     <div class="mb-4">
