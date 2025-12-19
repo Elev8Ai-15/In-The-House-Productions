@@ -2157,8 +2157,7 @@ app.get('/dj-services', (c) => {
               return;
             }
             
-            // Navigate to calendar (placeholder for now)
-            alert('Calendar booking coming soon! You selected: ' + djData[selectedDJ].name);
+            // Navigate to calendar
             window.location.href = "/calendar";
           }
           
@@ -2383,8 +2382,9 @@ app.get('/calendar', (c) => {
                   capacity.textContent = \`\${availability.remainingSlots}/\${availability.capacity}\`;
                   dayElement.appendChild(capacity);
                 } else {
-                  // Loading or unknown
-                  dayElement.classList.add('loading');
+                  // No availability data yet - assume available and make clickable
+                  dayElement.classList.add('available');
+                  dayElement.onclick = () => selectDate(dateStr);
                 }
               }
               
