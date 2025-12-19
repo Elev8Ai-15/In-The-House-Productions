@@ -791,6 +791,193 @@ app.get('/api/services/photobooth', (c) => {
   return c.json(photoboothProfile)
 })
 
+// ===== STRIPE SHOPPING CART API =====
+
+// Service pricing configuration
+const servicePricing = {
+  dj_cease: {
+    name: 'DJ Cease (Mike Cecil)',
+    basePrice: 500,
+    hourlyRate: 150,
+    minHours: 3
+  },
+  dj_elev8: {
+    name: 'DJ Elev8 (Brad Powell)',
+    basePrice: 500,
+    hourlyRate: 150,
+    minHours: 3
+  },
+  tko_the_dj: {
+    name: 'TKOtheDJ (Joey Tate)',
+    basePrice: 450,
+    hourlyRate: 125,
+    minHours: 3
+  },
+  photobooth: {
+    name: 'Photobooth Service',
+    basePrice: 400,
+    hourlyRate: 100,
+    minHours: 2
+  }
+}
+
+// Get cart (stored in client session for now, later use DB)
+app.get('/api/cart', async (c) => {
+  try {
+    // For now, return empty cart structure
+    // In production, fetch from database using user session
+    return c.json({
+      items: [],
+      total: 0,
+      tax: 0,
+      grandTotal: 0
+    })
+  } catch (error) {
+    return c.json({ error: 'Failed to fetch cart' }, 500)
+  }
+})
+
+// Add item to cart
+app.post('/api/cart/add', async (c) => {
+  try {
+    const { serviceId, eventDate, hours } = await c.req.json()
+    
+    // Validate service
+    const service = servicePricing[serviceId as keyof typeof servicePricing]
+    if (!service) {
+      return c.json({ error: 'Invalid service' }, 400)
+    }
+    
+    // Validate hours
+    if (hours < service.minHours) {
+      return c.json({ error: `Minimum ${service.minHours} hours required` }, 400)
+    }
+    
+    // Calculate price
+    const subtotal = service.basePrice + (service.hourlyRate * hours)
+    
+    const cartItem = {
+      id: `${serviceId}-${Date.now()}`,
+      serviceId,
+      serviceName: service.name,
+      eventDate,
+      hours,
+      basePrice: service.basePrice,
+      hourlyRate: service.hourlyRate,
+      subtotal
+    }
+    
+    return c.json({
+      success: true,
+      item: cartItem,
+      message: 'Added to cart'
+    })
+  } catch (error) {
+    return c.json({ error: 'Failed to add to cart' }, 500)
+  }
+})
+
+// Remove item from cart
+app.delete('/api/cart/remove/:itemId', async (c) => {
+  try {
+    const itemId = c.req.param('itemId')
+    
+    return c.json({
+      success: true,
+      message: 'Item removed from cart'
+    })
+  } catch (error) {
+    return c.json({ error: 'Failed to remove item' }, 500)
+  }
+})
+
+// Create Stripe checkout session
+app.post('/api/checkout/create-session', async (c) => {
+  try {
+    const { items } = await c.req.json()
+    
+    // Validate items
+    if (!items || items.length === 0) {
+      return c.json({ error: 'Cart is empty' }, 400)
+    }
+    
+    // Calculate total
+    let total = 0
+    const lineItems = items.map((item: any) => {
+      const service = servicePricing[item.serviceId as keyof typeof servicePricing]
+      if (!service) throw new Error('Invalid service')
+      
+      const subtotal = service.basePrice + (service.hourlyRate * item.hours)
+      total += subtotal
+      
+      return {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: service.name,
+            description: `${item.hours} hours on ${item.eventDate}`
+          },
+          unit_amount: subtotal * 100 // Stripe uses cents
+        },
+        quantity: 1
+      }
+    })
+    
+    // In production, you would use actual Stripe API here
+    // For now, return a mock session
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    
+    if (!STRIPE_SECRET_KEY) {
+      return c.json({
+        error: 'Stripe not configured',
+        message: 'Please add STRIPE_SECRET_KEY to environment variables',
+        total,
+        items: lineItems
+      }, 500)
+    }
+    
+    // Initialize Stripe (commented out until key is added)
+    // const Stripe = require('stripe')
+    // const stripe = new Stripe(STRIPE_SECRET_KEY)
+    // 
+    // const session = await stripe.checkout.sessions.create({
+    //   payment_method_types: ['card'],
+    //   line_items: lineItems,
+    //   mode: 'payment',
+    //   success_url: `${c.req.url.split('/api')[0]}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+    //   cancel_url: `${c.req.url.split('/api')[0]}/checkout/cancel`
+    // })
+    // 
+    // return c.json({ sessionId: session.id, url: session.url })
+    
+    // Temporary response until Stripe is configured
+    return c.json({
+      message: 'Stripe backend ready',
+      total,
+      items: lineItems,
+      note: 'Add STRIPE_SECRET_KEY to .dev.vars to enable checkout'
+    })
+    
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to create checkout session' }, 500)
+  }
+})
+
+// Webhook to handle Stripe events
+app.post('/api/webhook/stripe', async (c) => {
+  try {
+    const signature = c.req.header('stripe-signature')
+    const body = await c.req.text()
+    
+    // Verify webhook signature and process event
+    // This would use Stripe's webhook verification
+    
+    return c.json({ received: true })
+  } catch (error) {
+    return c.json({ error: 'Webhook error' }, 400)
+  }
+})
+
 // Check availability for a specific date and provider
 app.post('/api/availability/check', async (c) => {
   const { provider, date } = await c.req.json()
@@ -948,7 +1135,7 @@ app.get('/', (c) => {
           }
           
           .service-card {
-            background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+            background: #000000;
             position: relative;
           }
           
@@ -1154,7 +1341,7 @@ app.get('/dj-services', (c) => {
           }
           
           .dj-card {
-            background: linear-gradient(135deg, #0A0A0A 0%, #000000 100%);
+            background: #000000;
             border: 3px solid var(--chrome-silver);
             box-shadow: 0 0 20px rgba(227, 30, 36, 0.6);
             transition: all 0.3s ease;
