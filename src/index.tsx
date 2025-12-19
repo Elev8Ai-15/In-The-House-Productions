@@ -900,7 +900,8 @@ app.delete('/api/cart/remove/:itemId', async (c) => {
 // Create Stripe checkout session
 app.post('/api/checkout/create-session', async (c) => {
   try {
-    const { items } = await c.req.json()
+    const { items, bookingId } = await c.req.json()
+    const { DB } = c.env
     
     // Validate items
     if (!items || items.length === 0) {
@@ -958,6 +959,7 @@ app.post('/api/checkout/create-session', async (c) => {
       success_url: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/checkout/cancel`,
       metadata: {
+        bookingId: bookingId?.toString() || '',
         items: JSON.stringify(items.map((item: any) => ({
           serviceId: item.serviceId,
           eventDate: item.eventDate,
@@ -966,6 +968,15 @@ app.post('/api/checkout/create-session', async (c) => {
       }
     })
     
+    // Update booking with Stripe session ID
+    if (bookingId && DB) {
+      await DB.prepare(`
+        UPDATE bookings 
+        SET stripe_session_id = ?, payment_status = 'pending'
+        WHERE id = ?
+      `).bind(session.id, bookingId).run()
+    }
+    
     return c.json({ 
       sessionId: session.id, 
       url: session.url,
@@ -973,6 +984,7 @@ app.post('/api/checkout/create-session', async (c) => {
     })
     
   } catch (error: any) {
+    console.error('Checkout session error:', error)
     return c.json({ error: error.message || 'Failed to create checkout session' }, 500)
   }
 })
@@ -1009,15 +1021,27 @@ app.post('/api/webhook/stripe', async (c) => {
       event = JSON.parse(body)
     }
     
+    const { DB } = c.env
+    
     // Handle the event
     switch (event.type) {
       case 'checkout.session.completed':
         const session = event.data.object as Stripe.Checkout.Session
         console.log('Payment successful:', session.id)
         
-        // TODO: Update booking in database
-        // const metadata = JSON.parse(session.metadata?.items || '[]')
-        // await saveBookingToDatabase(metadata, session.id)
+        // Update booking status
+        const bookingId = session.metadata?.bookingId
+        if (bookingId && DB) {
+          await DB.prepare(`
+            UPDATE bookings 
+            SET payment_status = 'paid', 
+                status = 'confirmed',
+                stripe_payment_intent_id = ?
+            WHERE id = ?
+          `).bind(session.payment_intent as string, bookingId).run()
+          
+          console.log('Booking ' + bookingId + ' marked as paid')
+        }
         
         break
         
@@ -1029,10 +1053,20 @@ app.post('/api/webhook/stripe', async (c) => {
       case 'payment_intent.payment_failed':
         const failedPayment = event.data.object as Stripe.PaymentIntent
         console.error('Payment failed:', failedPayment.id)
+        
+        // Mark booking as failed if we can find it
+        if (DB && failedPayment.metadata?.bookingId) {
+          await DB.prepare(`
+            UPDATE bookings 
+            SET payment_status = 'failed', 
+                status = 'cancelled'
+            WHERE id = ?
+          `).bind(failedPayment.metadata.bookingId).run()
+        }
         break
         
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        console.log('Unhandled event type: ' + event.type)
     }
     
     return c.json({ received: true })
@@ -2454,6 +2488,391 @@ app.get('/calendar', (c) => {
   `)
 })
 
+// Event Details Form Page
+app.get('/event-details', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Event Details - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --chrome-silver: #C0C0C0;
+            --deep-black: #000;
+          }
+          
+          body {
+            background: #000;
+            color: #fff;
+          }
+          
+          .form-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(20, 20, 20, 0.9);
+            border: 2px solid var(--chrome-silver);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 0 30px rgba(227, 30, 36, 0.3);
+          }
+          
+          .form-group {
+            margin-bottom: 1.5rem;
+          }
+          
+          .form-label {
+            display: block;
+            color: var(--chrome-silver);
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          
+          .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+          }
+          
+          .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-red);
+            box-shadow: 0 0 15px rgba(227, 30, 36, 0.3);
+          }
+          
+          .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+          }
+          
+          .btn-submit {
+            background: linear-gradient(135deg, var(--primary-red), #FF0040);
+            color: white;
+            padding: 1rem 3rem;
+            border: 2px solid var(--chrome-silver);
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 0 20px rgba(227, 30, 36, 0.5);
+          }
+          
+          .btn-submit:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 30px rgba(255, 0, 64, 0.8);
+          }
+          
+          .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          
+          .booking-summary {
+            background: rgba(227, 30, 36, 0.1);
+            border: 2px solid var(--primary-red);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+          }
+          
+          .required {
+            color: var(--primary-red);
+          }
+          
+          .time-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+          }
+        </style>
+    </head>
+    <body class="min-h-screen p-4">
+        <div class="form-container">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold mb-2" style="color: var(--primary-red);">
+                    <i class="fas fa-calendar-check mr-2"></i>
+                    EVENT DETAILS
+                </h1>
+                <p class="text-chrome-silver">Tell us about your event</p>
+            </div>
+            
+            <!-- Booking Summary -->
+            <div class="booking-summary">
+                <h2 class="text-xl font-bold mb-3 text-center">Your Selection</h2>
+                <div class="grid md:grid-cols-2 gap-4 text-center">
+                    <div>
+                        <p class="text-chrome-silver text-sm">SERVICE</p>
+                        <p class="text-lg font-bold" id="summaryService">Loading...</p>
+                    </div>
+                    <div>
+                        <p class="text-chrome-silver text-sm">DATE</p>
+                        <p class="text-lg font-bold" id="summaryDate">Loading...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event Details Form -->
+            <form id="eventForm">
+                <!-- Event Name -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Event Name <span class="required">*</span>
+                    </label>
+                    <input type="text" id="eventName" class="form-input" 
+                           placeholder="e.g., Sarah & John's Wedding Reception" required>
+                </div>
+                
+                <!-- Event Type -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Event Type <span class="required">*</span>
+                    </label>
+                    <select id="eventType" class="form-select" required>
+                        <option value="">-- Select Event Type --</option>
+                        <option value="wedding">Wedding</option>
+                        <option value="corporate">Corporate Event</option>
+                        <option value="birthday">Birthday Party</option>
+                        <option value="anniversary">Anniversary</option>
+                        <option value="graduation">Graduation</option>
+                        <option value="holiday">Holiday Party</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <!-- Time Selection -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Event Time <span class="required">*</span>
+                    </label>
+                    <div class="time-grid">
+                        <div>
+                            <label class="text-sm text-gray-400">Start Time</label>
+                            <input type="time" id="startTime" class="form-input" required>
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-400">End Time</label>
+                            <input type="time" id="endTime" class="form-input" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Venue Name -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Venue Name <span class="required">*</span>
+                    </label>
+                    <input type="text" id="venueName" class="form-input" 
+                           placeholder="e.g., Grand Ballroom" required>
+                </div>
+                
+                <!-- Venue Address -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Venue Address <span class="required">*</span>
+                    </label>
+                    <input type="text" id="venueAddress" class="form-input" 
+                           placeholder="Street Address" required>
+                </div>
+                
+                <!-- City, State, ZIP -->
+                <div class="grid md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label class="form-label">City <span class="required">*</span></label>
+                        <input type="text" id="venueCity" class="form-input" required>
+                    </div>
+                    <div>
+                        <label class="form-label">State <span class="required">*</span></label>
+                        <input type="text" id="venueState" class="form-input" 
+                               maxlength="2" placeholder="FL" required>
+                    </div>
+                    <div>
+                        <label class="form-label">ZIP <span class="required">*</span></label>
+                        <input type="text" id="venueZip" class="form-input" 
+                               maxlength="10" placeholder="33701" required>
+                    </div>
+                </div>
+                
+                <!-- Expected Guests -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Expected Number of Guests <span class="required">*</span>
+                    </label>
+                    <input type="number" id="expectedGuests" class="form-input" 
+                           min="1" placeholder="e.g., 150" required>
+                </div>
+                
+                <!-- Special Requests -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Special Requests or Notes
+                    </label>
+                    <textarea id="specialRequests" class="form-textarea" 
+                              placeholder="Any special music requests, equipment needs, or other details we should know..."></textarea>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="text-center mt-8">
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        <i class="fas fa-arrow-right mr-2"></i>
+                        CONTINUE TO PAYMENT
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <script>
+          // Load booking data from localStorage
+          let bookingData = {};
+          
+          window.addEventListener('DOMContentLoaded', () => {
+            // Check authentication
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+              alert('Please log in to continue.');
+              window.location.href = '/login';
+              return;
+            }
+            
+            // Load booking data
+            const storedData = localStorage.getItem('bookingData');
+            if (!storedData) {
+              alert('No booking data found. Please start from the beginning.');
+              window.location.href = '/';
+              return;
+            }
+            
+            bookingData = JSON.parse(storedData);
+            
+            // Display summary
+            document.getElementById('summaryService').textContent = 
+              bookingData.serviceType === 'photobooth' ? 'Photobooth Service' : 
+              (bookingData.djName || 'DJ Service');
+            
+            const dateObj = new Date(bookingData.date);
+            document.getElementById('summaryDate').textContent = 
+              dateObj.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              });
+          });
+          
+          // Form submission
+          document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>PROCESSING...';
+            
+            try {
+              // Collect form data
+              const eventDetails = {
+                eventName: document.getElementById('eventName').value,
+                eventType: document.getElementById('eventType').value,
+                venueName: document.getElementById('venueName').value,
+                venueAddress: document.getElementById('venueAddress').value,
+                venueCity: document.getElementById('venueCity').value,
+                venueState: document.getElementById('venueState').value.toUpperCase(),
+                venueZip: document.getElementById('venueZip').value,
+                expectedGuests: parseInt(document.getElementById('expectedGuests').value),
+                specialRequests: document.getElementById('specialRequests').value
+              };
+              
+              const startTime = document.getElementById('startTime').value;
+              const endTime = document.getElementById('endTime').value;
+              
+              // Create booking
+              const authToken = localStorage.getItem('authToken');
+              const response = await fetch('/api/bookings/create', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': \`Bearer \${authToken}\`
+                },
+                body: JSON.stringify({
+                  serviceType: bookingData.serviceType || bookingData.dj,
+                  serviceProvider: bookingData.dj || bookingData.serviceProvider,
+                  eventDate: bookingData.date,
+                  startTime,
+                  endTime,
+                  eventDetails
+                })
+              });
+              
+              const result = await response.json();
+              
+              if (!response.ok) {
+                throw new Error(result.error || 'Booking failed');
+              }
+              
+              // Store booking ID
+              localStorage.setItem('bookingId', result.bookingId);
+              
+              // Create Stripe checkout session
+              const checkoutResponse = await fetch('/api/checkout/create-session', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': \`Bearer \${authToken}\`
+                },
+                body: JSON.stringify({
+                  bookingId: result.bookingId,
+                  items: [{
+                    serviceId: bookingData.dj || bookingData.serviceType,
+                    eventDate: bookingData.date,
+                    hours: calculateHours(startTime, endTime)
+                  }]
+                })
+              });
+              
+              const checkoutData = await checkoutResponse.json();
+              
+              if (!checkoutResponse.ok) {
+                throw new Error(checkoutData.error || 'Checkout session creation failed');
+              }
+              
+              // Redirect to Stripe
+              window.location.href = checkoutData.url;
+              
+            } catch (error) {
+              alert('Error: ' + error.message);
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i class="fas fa-arrow-right mr-2"></i>CONTINUE TO PAYMENT';
+            }
+          });
+          
+          function calculateHours(start, end) {
+            const [startHour, startMin] = start.split(':').map(Number);
+            const [endHour, endMin] = end.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMin;
+            const endMinutes = endHour * 60 + endMin;
+            return Math.ceil((endMinutes - startMinutes) / 60);
+          }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // Photobooth Page
 app.get('/photobooth', (c) => {
   return c.html(`
@@ -2731,6 +3150,118 @@ app.get('/photobooth', (c) => {
             }
           });
         </script>
+    </body>
+    </html>
+  `)
+})
+
+// Checkout Success Page
+app.get('/checkout/success', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Confirmed! - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          body { background: #000; color: #fff; }
+          .success-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            text-align: center;
+            padding: 2rem;
+          }
+          .success-icon {
+            font-size: 5rem;
+            color: #22c55e;
+            animation: bounce 1s ease-in-out;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+          }
+        </style>
+    </head>
+    <body>
+        <div class="success-container">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h1 class="text-4xl font-bold mt-6 mb-4" style="color: #22c55e;">
+                Booking Confirmed!
+            </h1>
+            <p class="text-xl mb-6 text-gray-300">
+                Your payment was successful and your booking is confirmed.
+            </p>
+            <p class="text-lg mb-8 text-gray-400">
+                <i class="fas fa-envelope mr-2"></i>
+                Confirmation emails have been sent to you and your provider.
+            </p>
+            <p class="text-lg mb-8 text-gray-400">
+                <i class="fas fa-sms mr-2"></i>
+                Your provider has also received an SMS notification.
+            </p>
+            <div class="mt-12">
+                <a href="/" class="inline-block bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full transition-all">
+                    <i class="fas fa-home mr-2"></i>
+                    Return to Home
+                </a>
+            </div>
+        </div>
+    </body>
+    </html>
+  `)
+})
+
+// Checkout Cancel Page
+app.get('/checkout/cancel', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Cancelled - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          body { background: #000; color: #fff; }
+          .cancel-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            text-align: center;
+            padding: 2rem;
+          }
+          .cancel-icon {
+            font-size: 5rem;
+            color: #ef4444;
+          }
+        </style>
+    </head>
+    <body>
+        <div class="cancel-container">
+            <i class="fas fa-times-circle cancel-icon"></i>
+            <h1 class="text-4xl font-bold mt-6 mb-4" style="color: #ef4444;">
+                Booking Cancelled
+            </h1>
+            <p class="text-xl mb-6 text-gray-300">
+                Your payment was cancelled and no charges were made.
+            </p>
+            <p class="text-lg mb-8 text-gray-400">
+                Your booking information has been saved. You can resume the checkout process anytime.
+            </p>
+            <div class="mt-12 space-x-4">
+                <a href="/event-details" class="inline-block bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full transition-all">
+                    <i class="fas fa-redo mr-2"></i>
+                    Try Again
+                </a>
+                <a href="/" class="inline-block bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-full transition-all">
+                    <i class="fas fa-home mr-2"></i>
+                    Go Home
+                </a>
+            </div>
+        </div>
     </body>
     </html>
   `)
