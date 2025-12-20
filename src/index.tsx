@@ -3152,7 +3152,6 @@ app.get('/photobooth', (c) => {
             }
             
             // Navigate to calendar
-            alert('Calendar booking coming soon! You selected: ' + photoboothData[selectedPhotobooth].name);
             window.location.href = "/calendar-photobooth";
           }
           
