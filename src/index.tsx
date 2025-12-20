@@ -3152,7 +3152,7 @@ app.get('/photobooth', (c) => {
             }
             
             // Navigate to calendar
-            window.location.href = "/calendar-photobooth";
+            window.location.href = "/calendar";
           }
           
           // Check if user is logged in on page load
