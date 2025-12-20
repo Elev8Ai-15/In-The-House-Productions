@@ -3778,4 +3778,477 @@ app.get('/about', (c) => {
 </html>`)
 })
 
+// ================================
+// ADMIN DASHBOARD ROUTES
+// ================================
+
+// Admin API: Get all bookings with details
+app.get('/api/admin/bookings', async (c) => {
+  try {
+    const { env } = c
+    const { DB } = env
+
+    // Get all bookings with client and provider info
+    const result = await DB.prepare(`
+      SELECT 
+        b.id,
+        b.event_date,
+        b.event_start_time as start_time,
+        b.event_end_time as end_time,
+        b.service_type,
+        b.service_provider,
+        b.total_price,
+        b.status,
+        b.created_at,
+        u.full_name as client_name,
+        u.email as client_email,
+        u.phone as client_phone,
+        e.event_name,
+        e.event_type,
+        e.street_address,
+        e.city,
+        e.state,
+        e.zip_code,
+        e.number_of_guests,
+        e.special_requests
+      FROM bookings b
+      JOIN users u ON b.user_id = u.id
+      LEFT JOIN event_details e ON b.id = e.booking_id
+      ORDER BY b.created_at DESC
+    `).all()
+
+    return c.json({ success: true, bookings: result.results })
+  } catch (error) {
+    console.error('Admin bookings error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Admin API: Get system stats
+app.get('/api/admin/stats', async (c) => {
+  try {
+    const { env } = c
+    const { DB } = env
+
+    // Get counts
+    const totalBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings').first()
+    const totalUsers = await DB.prepare('SELECT COUNT(*) as count FROM users').first()
+    const totalProviders = await DB.prepare('SELECT COUNT(*) as count FROM provider_contacts').first()
+    
+    // Get revenue
+    const revenue = await DB.prepare('SELECT SUM(total_price) as total FROM bookings WHERE status = "confirmed"').first()
+    
+    // Get recent bookings
+    const recentBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings WHERE created_at >= datetime("now", "-7 days")').first()
+
+    return c.json({
+      success: true,
+      stats: {
+        totalBookings: totalBookings.count || 0,
+        totalUsers: totalUsers.count || 0,
+        totalProviders: totalProviders.count || 0,
+        totalRevenue: revenue.total || 0,
+        recentBookings: recentBookings.count || 0
+      }
+    })
+  } catch (error) {
+    console.error('Admin stats error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Admin API: Update booking status
+app.post('/api/admin/bookings/:id/status', async (c) => {
+  try {
+    const { env } = c
+    const { DB } = env
+    const bookingId = c.req.param('id')
+    const { status } = await c.req.json()
+
+    // Valid statuses: pending, confirmed, completed, cancelled
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled']
+    if (!validStatuses.includes(status)) {
+      return c.json({ success: false, error: 'Invalid status' }, 400)
+    }
+
+    await DB.prepare('UPDATE bookings SET status = ? WHERE id = ?')
+      .bind(status, bookingId)
+      .run()
+
+    return c.json({ success: true, message: 'Booking status updated' })
+  } catch (error) {
+    console.error('Update status error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Admin API: Get all providers
+app.get('/api/admin/providers', async (c) => {
+  try {
+    const { env } = c
+    const { DB } = env
+
+    const result = await DB.prepare('SELECT * FROM provider_contacts ORDER BY provider_name').all()
+
+    return c.json({ success: true, providers: result.results })
+  } catch (error) {
+    console.error('Admin providers error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Admin Dashboard Page
+app.get('/admin', (c) => {
+  return c.html(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - In The House Productions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-red: #DC143C;
+            --primary-gold: #FFD700;
+            --chrome-silver: #C0C0C0;
+            --deep-black: #000000;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            font-family: 'Arial', sans-serif;
+            min-height: 100vh;
+        }
+        
+        .admin-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(220, 20, 60, 0.2) 0%, rgba(255, 215, 0, 0.2) 100%);
+            border: 2px solid var(--chrome-silver);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(220, 20, 60, 0.4);
+        }
+        
+        .booking-table {
+            width: 100%;
+            overflow-x: auto;
+        }
+        
+        .booking-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .booking-table th {
+            background: rgba(220, 20, 60, 0.3);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        .booking-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .booking-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-pending { background: #FFA500; color: white; }
+        .status-confirmed { background: #28A745; color: white; }
+        .status-completed { background: #007BFF; color: white; }
+        .status-cancelled { background: #DC3545; color: white; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-red) 0%, #ff1744 100%);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(220, 20, 60, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .loading {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="admin-card rounded-lg p-6 mb-8">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-4xl font-bold text-white mb-2">
+                        <i class="fas fa-tachometer-alt text-primary-red mr-3"></i>
+                        Admin Dashboard
+                    </h1>
+                    <p class="text-gray-300">In The House Productions - Management Console</p>
+                </div>
+                <div>
+                    <a href="/" class="btn-primary">
+                        <i class="fas fa-home mr-2"></i>Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid md:grid-cols-5 gap-6 mb-8">
+            <div class="stat-card rounded-lg p-6 text-center">
+                <i class="fas fa-calendar-check text-5xl text-primary-gold mb-3"></i>
+                <h3 class="text-3xl font-bold text-white mb-1" id="totalBookings">
+                    <i class="fas fa-spinner loading"></i>
+                </h3>
+                <p class="text-gray-300 text-sm">Total Bookings</p>
+            </div>
+            
+            <div class="stat-card rounded-lg p-6 text-center">
+                <i class="fas fa-users text-5xl text-primary-gold mb-3"></i>
+                <h3 class="text-3xl font-bold text-white mb-1" id="totalUsers">
+                    <i class="fas fa-spinner loading"></i>
+                </h3>
+                <p class="text-gray-300 text-sm">Total Clients</p>
+            </div>
+            
+            <div class="stat-card rounded-lg p-6 text-center">
+                <i class="fas fa-user-tie text-5xl text-primary-gold mb-3"></i>
+                <h3 class="text-3xl font-bold text-white mb-1" id="totalProviders">
+                    <i class="fas fa-spinner loading"></i>
+                </h3>
+                <p class="text-gray-300 text-sm">Providers</p>
+            </div>
+            
+            <div class="stat-card rounded-lg p-6 text-center">
+                <i class="fas fa-dollar-sign text-5xl text-primary-gold mb-3"></i>
+                <h3 class="text-3xl font-bold text-white mb-1" id="totalRevenue">
+                    <i class="fas fa-spinner loading"></i>
+                </h3>
+                <p class="text-gray-300 text-sm">Total Revenue</p>
+            </div>
+            
+            <div class="stat-card rounded-lg p-6 text-center">
+                <i class="fas fa-clock text-5xl text-primary-gold mb-3"></i>
+                <h3 class="text-3xl font-bold text-white mb-1" id="recentBookings">
+                    <i class="fas fa-spinner loading"></i>
+                </h3>
+                <p class="text-gray-300 text-sm">Last 7 Days</p>
+            </div>
+        </div>
+
+        <!-- Bookings Table -->
+        <div class="admin-card rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-list text-primary-red mr-2"></i>All Bookings
+            </h2>
+            
+            <div id="bookingsLoading" class="text-center text-white py-12">
+                <i class="fas fa-spinner loading text-5xl text-primary-gold mb-4"></i>
+                <p class="text-xl">Loading bookings...</p>
+            </div>
+            
+            <div id="bookingsTable" class="booking-table hidden">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Client</th>
+                            <th>Provider</th>
+                            <th>Event Type</th>
+                            <th>Venue</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsBody">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Providers Section -->
+        <div class="admin-card rounded-lg p-6">
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-user-friends text-primary-red mr-2"></i>Providers
+            </h2>
+            
+            <div id="providersLoading" class="text-center text-white py-8">
+                <i class="fas fa-spinner loading text-4xl text-primary-gold mb-3"></i>
+                <p>Loading providers...</p>
+            </div>
+            
+            <div id="providersGrid" class="grid md:grid-cols-3 gap-4 hidden">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await axios.get('/api/admin/stats')
+                if (response.data.success) {
+                    const stats = response.data.stats
+                    document.getElementById('totalBookings').textContent = stats.totalBookings
+                    document.getElementById('totalUsers').textContent = stats.totalUsers
+                    document.getElementById('totalProviders').textContent = stats.totalProviders
+                    document.getElementById('totalRevenue').textContent = '$' + stats.totalRevenue.toFixed(2)
+                    document.getElementById('recentBookings').textContent = stats.recentBookings
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error)
+            }
+        }
+
+        // Load bookings
+        async function loadBookings() {
+            try {
+                const response = await axios.get('/api/admin/bookings')
+                if (response.data.success) {
+                    const bookings = response.data.bookings
+                    const tbody = document.getElementById('bookingsBody')
+                    
+                    if (bookings.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-gray-400">No bookings yet</td></tr>'
+                    } else {
+                        tbody.innerHTML = bookings.map(booking => \`
+                            <tr>
+                                <td>#\${booking.id}</td>
+                                <td>\${new Date(booking.event_date).toLocaleDateString()}<br>
+                                    <small class="text-gray-400">\${booking.start_time} - \${booking.end_time}</small>
+                                </td>
+                                <td>
+                                    \${booking.client_name}<br>
+                                    <small class="text-gray-400">\${booking.client_phone}</small>
+                                </td>
+                                <td>\${booking.service_provider}</td>
+                                <td>\${booking.event_type || 'N/A'}</td>
+                                <td>\${booking.city}, \${booking.state}</td>
+                                <td class="font-bold text-primary-gold">$\${booking.total_price || '0.00'}</td>
+                                <td>
+                                    <span class="status-badge status-\${booking.status}">\${booking.status}</span>
+                                </td>
+                                <td>
+                                    <select onchange="updateStatus(\${booking.id}, this.value)" class="bg-gray-700 text-white px-2 py-1 rounded text-sm">
+                                        <option value="">Change Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="confirmed">Confirmed</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="cancelled">Cancelled</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        \`).join('')
+                    }
+                    
+                    document.getElementById('bookingsLoading').classList.add('hidden')
+                    document.getElementById('bookingsTable').classList.remove('hidden')
+                }
+            } catch (error) {
+                console.error('Failed to load bookings:', error)
+                document.getElementById('bookingsLoading').innerHTML = '<p class="text-red-500">Failed to load bookings</p>'
+            }
+        }
+
+        // Load providers
+        async function loadProviders() {
+            try {
+                const response = await axios.get('/api/admin/providers')
+                if (response.data.success) {
+                    const providers = response.data.providers
+                    const grid = document.getElementById('providersGrid')
+                    
+                    grid.innerHTML = providers.map(provider => \`
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="text-xl font-bold text-white mb-2">\${provider.provider_name}</h3>
+                            <p class="text-gray-300 text-sm mb-2">ID: \${provider.provider_id}</p>
+                            <p class="text-gray-400 text-xs">
+                                <i class="fas fa-envelope mr-1"></i>\${provider.email}<br>
+                                <i class="fas fa-phone mr-1"></i>\${provider.phone}<br>
+                                <i class="fas fa-bell mr-1"></i>\${provider.notification_preferences}
+                            </p>
+                        </div>
+                    \`).join('')
+                    
+                    document.getElementById('providersLoading').classList.add('hidden')
+                    document.getElementById('providersGrid').classList.remove('hidden')
+                }
+            } catch (error) {
+                console.error('Failed to load providers:', error)
+            }
+        }
+
+        // Update booking status
+        async function updateStatus(bookingId, newStatus) {
+            if (!newStatus) return
+            
+            try {
+                const response = await axios.post(\`/api/admin/bookings/\${bookingId}/status\`, {
+                    status: newStatus
+                })
+                
+                if (response.data.success) {
+                    alert('✅ Booking status updated successfully!')
+                    loadBookings() // Reload to show updated status
+                } else {
+                    alert('❌ Failed to update status: ' + response.data.error)
+                }
+            } catch (error) {
+                console.error('Failed to update status:', error)
+                alert('❌ Error updating status')
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats()
+            loadBookings()
+            loadProviders()
+        })
+    </script>
+</body>
+</html>
+  `)
+})
+
 export default app
