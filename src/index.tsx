@@ -1521,7 +1521,7 @@ Price: $${booking.totalPrice}
   // Send email to provider
   await resend.emails.send({
     from: 'In The House Productions <noreply@inthehouseproductions.com>',
-    to: provider.email,
+    to: [provider.email, 'mcecil38@yahoo.com'], // Send to provider AND Michael Cecil
     subject: `New Booking - ${booking.eventDate}`,
     html: `
       <h2>New Booking Alert!</h2>
@@ -3350,7 +3350,7 @@ app.get('/register', (c) => {
             messageEl.classList.remove('hidden');
             localStorage.setItem('authToken', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
-            setTimeout(() => { window.location.href = '/dj-services'; }, 2000);
+            setTimeout(() => { window.location.href = '/'; }, 2000);
           } else {
             messageEl.className = 'error-message p-3 rounded mb-4';
             messageEl.textContent = '✗ ' + (data.error || 'Registration failed');
