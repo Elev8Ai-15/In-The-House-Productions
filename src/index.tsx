@@ -1936,6 +1936,24 @@ app.get('/dj-services', (c) => {
         </style>
     </head>
     <body class="min-h-screen">
+        <!-- Professional Modal -->
+        <div id="proModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);z-index:9999;justify-content:center;align-items:center;">
+            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:32px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
+                <div id="proModalIcon" style="text-align:center;font-size:64px;margin-bottom:20px;"></div>
+                <h2 id="proModalTitle" style="color:white;font-size:24px;font-weight:bold;text-align:center;margin-bottom:16px;"></h2>
+                <p id="proModalMsg" style="color:#C0C0C0;font-size:16px;text-align:center;line-height:1.6;margin-bottom:24px;"></p>
+                <div id="proModalBtns" style="display:flex;gap:12px;justify-content:center;"></div>
+            </div>
+        </div>
+        <style>
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        #proModal.show{display:flex!important}
+        .pro-btn{padding:12px 32px;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
+        .pro-btn-primary{background:linear-gradient(135deg,#DC143C,#ff1744);color:white}
+        .pro-btn-primary:hover{box-shadow:0 6px 20px rgba(220,20,60,0.6);transform:translateY(-2px)}
+        .pro-btn-secondary{background:linear-gradient(135deg,#555,#777);color:white}
+        .pro-btn-secondary:hover{box-shadow:0 6px 20px rgba(192,192,192,0.4);transform:translateY(-2px)}
+        </style>
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
@@ -2152,14 +2170,14 @@ app.get('/dj-services', (c) => {
             alert(djData[djId].fullBio);
           }
           
-          function continueToCalendar() {
+          function continueToCalendar() async {
             // Store selected DJ in localStorage
             localStorage.setItem('selectedDJ', selectedDJ);
             
             // Check if user is logged in
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              alert('Please log in to continue booking');
+              await showAlert('Please log in to continue booking', 'Login Required');
               window.location.href = '/login';
               return;
             }
@@ -2168,11 +2186,17 @@ app.get('/dj-services', (c) => {
             window.location.href = "/calendar";
           }
           
+          // Professional Modal Functions
+          window.showConfirm=function(msg,title='Confirm'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-question-circle" style="color:#FFD700"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-secondary">Cancel</button><button class="pro-btn pro-btn-primary">Confirm</button>';b.querySelectorAll('button')[0].onclick=()=>{m.classList.remove('show');r(false)};b.querySelectorAll('button')[1].onclick=()=>{m.classList.remove('show');r(true)};m.classList.add('show')})};
+          window.showAlert=function(msg,title='Notice'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-info-circle" style="color:#FFD700"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          window.showSuccess=function(msg,title='Success'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-check-circle" style="color:#28A745"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          window.showError=function(msg,title='Error'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-times-circle" style="color:#DC143C"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          
           // Check if user is logged in on page load
-          window.addEventListener('DOMContentLoaded', () => {
+          window.addEventListener('DOMContentLoaded', async () => {
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              const shouldLogin = confirm('You need to be logged in to book a DJ. Would you like to log in now?');
+              const shouldLogin = await showConfirm('You need to be logged in to book a DJ. Would you like to log in now?', 'Login Required');
               if (shouldLogin) {
                 window.location.href = '/login';
               } else {
@@ -2302,7 +2326,7 @@ app.get('/calendar', (c) => {
           window.addEventListener('DOMContentLoaded', async () => {
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              alert('Please log in to continue booking.');
+              await showAlert('Please log in to continue booking.', 'Login Required');
               window.location.href = '/login';
               return;
             }
@@ -2310,7 +2334,7 @@ app.get('/calendar', (c) => {
             // Get selected DJ from localStorage
             selectedDJ = localStorage.getItem('selectedDJ');
             if (!selectedDJ) {
-              alert('Please select a DJ first.');
+              await showAlert('Please select a DJ first.', 'Selection Required');
               window.location.href = '/dj-services';
               return;
             }
@@ -2476,7 +2500,7 @@ app.get('/calendar', (c) => {
           
           function continueToEventDetails() {
             if (!selectedDate) {
-              alert('Please select a date first.');
+              await showAlert('Please select a date first.', 'Selection Required');
               return;
             }
             
@@ -2745,11 +2769,11 @@ app.get('/event-details', (c) => {
           // Load booking data from localStorage
           let bookingData = {};
           
-          window.addEventListener('DOMContentLoaded', () => {
+          window.addEventListener('DOMContentLoaded', async () => {
             // Check authentication
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              alert('Please log in to continue.');
+              await showAlert('Please log in to continue.', 'Login Required');
               window.location.href = '/login';
               return;
             }
@@ -2757,7 +2781,7 @@ app.get('/event-details', (c) => {
             // Load booking data
             const storedData = localStorage.getItem('bookingData');
             if (!storedData) {
-              alert('No booking data found. Please start from the beginning.');
+              await showAlert('No booking data found. Please start from the beginning.', 'Error');
               window.location.href = '/';
               return;
             }
@@ -2791,7 +2815,7 @@ app.get('/event-details', (c) => {
               // Check if user is logged in
               const authToken = localStorage.getItem('authToken');
               if (!authToken) {
-                alert('Please log in to continue with your booking.');
+                await showAlert('Please log in to continue with your booking.', 'Login Required');
                 window.location.href = '/login';
                 return;
               }
@@ -2836,7 +2860,7 @@ app.get('/event-details', (c) => {
                 if (result.error && (result.error.includes('token') || result.error.includes('Token'))) {
                   localStorage.removeItem('authToken');
                   localStorage.removeItem('user');
-                  alert('Your session has expired. Please log in again.');
+                  await showAlert('Your session has expired. Please log in again.', 'Session Expired');
                   window.location.href = '/login';
                   return;
                 }
@@ -2873,7 +2897,7 @@ app.get('/event-details', (c) => {
               window.location.href = checkoutData.url;
               
             } catch (error) {
-              alert('Error: ' + error.message);
+              await showError('Error: ' + error.message, 'Booking Error');
               submitBtn.disabled = false;
               submitBtn.innerHTML = '<i class="fas fa-arrow-right mr-2"></i>CONTINUE TO PAYMENT';
             }
@@ -2986,6 +3010,24 @@ app.get('/photobooth', (c) => {
         </style>
     </head>
     <body class="min-h-screen">
+        <!-- Professional Modal -->
+        <div id="proModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);z-index:9999;justify-content:center;align-items:center;">
+            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:32px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
+                <div id="proModalIcon" style="text-align:center;font-size:64px;margin-bottom:20px;"></div>
+                <h2 id="proModalTitle" style="color:white;font-size:24px;font-weight:bold;text-align:center;margin-bottom:16px;"></h2>
+                <p id="proModalMsg" style="color:#C0C0C0;font-size:16px;text-align:center;line-height:1.6;margin-bottom:24px;"></p>
+                <div id="proModalBtns" style="display:flex;gap:12px;justify-content:center;"></div>
+            </div>
+        </div>
+        <style>
+        @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        #proModal.show{display:flex!important}
+        .pro-btn{padding:12px 32px;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
+        .pro-btn-primary{background:linear-gradient(135deg,#DC143C,#ff1744);color:white}
+        .pro-btn-primary:hover{box-shadow:0 6px 20px rgba(220,20,60,0.6);transform:translateY(-2px)}
+        .pro-btn-secondary{background:linear-gradient(135deg,#555,#777);color:white}
+        .pro-btn-secondary:hover{box-shadow:0 6px 20px rgba(192,192,192,0.4);transform:translateY(-2px)}
+        </style>
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
@@ -3138,7 +3180,7 @@ app.get('/photobooth', (c) => {
             document.getElementById('selectedPhotoboothName').textContent = photoboothData[unit].name;
           }
           
-          function continueToCalendar() {
+          function continueToCalendar() async {
             // Store selected photobooth in localStorage
             localStorage.setItem('selectedPhotobooth', selectedPhotobooth);
             localStorage.setItem('serviceType', 'photobooth');
@@ -3146,7 +3188,7 @@ app.get('/photobooth', (c) => {
             // Check if user is logged in
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              alert('Please log in to continue booking');
+              await showAlert('Please log in to continue booking', 'Login Required');
               window.location.href = '/login';
               return;
             }
@@ -3155,11 +3197,17 @@ app.get('/photobooth', (c) => {
             window.location.href = "/calendar";
           }
           
+          // Professional Modal Functions
+          window.showConfirm=function(msg,title='Confirm'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-question-circle" style="color:#FFD700"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-secondary">Cancel</button><button class="pro-btn pro-btn-primary">Confirm</button>';b.querySelectorAll('button')[0].onclick=()=>{m.classList.remove('show');r(false)};b.querySelectorAll('button')[1].onclick=()=>{m.classList.remove('show');r(true)};m.classList.add('show')})};
+          window.showAlert=function(msg,title='Notice'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-info-circle" style="color:#FFD700"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          window.showSuccess=function(msg,title='Success'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-check-circle" style="color:#28A745"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          window.showError=function(msg,title='Error'){return new Promise(r=>{const m=document.getElementById('proModal'),i=document.getElementById('proModalIcon'),t=document.getElementById('proModalTitle'),p=document.getElementById('proModalMsg'),b=document.getElementById('proModalBtns');i.innerHTML='<i class="fas fa-times-circle" style="color:#DC143C"></i>';t.textContent=title;p.textContent=msg;b.innerHTML='<button class="pro-btn pro-btn-primary">OK</button>';b.querySelector('button').onclick=()=>{m.classList.remove('show');r()};m.classList.add('show')})};
+          
           // Check if user is logged in on page load
-          window.addEventListener('DOMContentLoaded', () => {
+          window.addEventListener('DOMContentLoaded', async () => {
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              const shouldLogin = confirm('You need to be logged in to book a photobooth. Would you like to log in now?');
+              const shouldLogin = await showConfirm('You need to be logged in to book a photobooth. Would you like to log in now?', 'Login Required');
               if (shouldLogin) {
                 window.location.href = '/login';
               } else {
@@ -4228,14 +4276,14 @@ app.get('/admin', (c) => {
                 })
                 
                 if (response.data.success) {
-                    alert('✅ Booking status updated successfully!')
+                    await showSuccess('Booking status updated successfully!', 'Success')
                     loadBookings() // Reload to show updated status
                 } else {
-                    alert('❌ Failed to update status: ' + response.data.error)
+                    await showError('Failed to update status: ' + response.data.error, 'Update Failed')
                 }
             } catch (error) {
                 console.error('Failed to update status:', error)
-                alert('❌ Error updating status')
+                await showError('Error updating status', 'Update Failed')
             }
         }
 
