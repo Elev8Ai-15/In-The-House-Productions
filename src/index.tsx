@@ -2322,7 +2322,7 @@ app.get('/calendar', (c) => {
                              'July', 'August', 'September', 'October', 'November', 'December'];
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           
-          // Check authentication and load DJ selection
+          // Check authentication and load selection
           window.addEventListener('DOMContentLoaded', async () => {
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
@@ -2331,22 +2331,35 @@ app.get('/calendar', (c) => {
               return;
             }
             
-            // Get selected DJ from localStorage
+            // Get service type (DJ or Photobooth)
+            const serviceType = localStorage.getItem('serviceType');
             selectedDJ = localStorage.getItem('selectedDJ');
-            if (!selectedDJ) {
-              await showAlert('Please select a DJ first.', 'Selection Required');
-              window.location.href = '/dj-services';
+            const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
+            
+            // Check if ANY service is selected
+            if (!selectedDJ && !selectedPhotobooth) {
+              await showAlert('Please select a service first (DJ or Photobooth).', 'Selection Required');
+              window.location.href = '/';
               return;
             }
             
-            // Display selected DJ
-            const djNames = {
-              'dj_cease': 'DJ Cease',
-              'dj_elev8': 'DJ Elev8',
-              'tko_the_dj': 'TKOtheDJ'
-            };
-            document.getElementById('selectedDJDisplay').textContent = 
-              'Booking for: ' + djNames[selectedDJ];
+            // Display selected service
+            if (serviceType === 'photobooth') {
+              const photoboothNames = {
+                'unit1': 'Photobooth Unit 1 (Maria Cecil)',
+                'unit2': 'Photobooth Unit 2 (Cora Scarborough)'
+              };
+              document.getElementById('selectedDJDisplay').textContent = 
+                'Booking for: ' + (photoboothNames[selectedPhotobooth] || 'Photobooth');
+            } else {
+              const djNames = {
+                'dj_cease': 'DJ Cease',
+                'dj_elev8': 'DJ Elev8',
+                'tko_the_dj': 'TKOtheDJ'
+              };
+              document.getElementById('selectedDJDisplay').textContent = 
+                'Booking for: ' + (djNames[selectedDJ] || 'DJ Service');
+            }
             
             // Load calendar
             await renderCalendar();
@@ -2504,11 +2517,36 @@ app.get('/calendar', (c) => {
               return;
             }
             
+            // Get service type and provider
+            const serviceType = localStorage.getItem('serviceType');
+            const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
+            
             // Store all booking data
-            localStorage.setItem('bookingData', JSON.stringify({
-              dj: selectedDJ,
+            const bookingDataToSave = {
               date: selectedDate
-            }));
+            };
+            
+            if (serviceType === 'photobooth') {
+              bookingDataToSave.serviceType = 'photobooth';
+              bookingDataToSave.serviceProvider = selectedPhotobooth;
+              const photoboothNames = {
+                'unit1': 'Photobooth Unit 1 (Maria Cecil)',
+                'unit2': 'Photobooth Unit 2 (Cora Scarborough)'
+              };
+              bookingDataToSave.photoboothName = photoboothNames[selectedPhotobooth];
+            } else {
+              bookingDataToSave.serviceType = 'dj';
+              bookingDataToSave.dj = selectedDJ;
+              bookingDataToSave.serviceProvider = selectedDJ;
+              const djNames = {
+                'dj_cease': 'DJ Cease',
+                'dj_elev8': 'DJ Elev8',
+                'tko_the_dj': 'TKOtheDJ'
+              };
+              bookingDataToSave.djName = djNames[selectedDJ];
+            }
+            
+            localStorage.setItem('bookingData', JSON.stringify(bookingDataToSave));
             
             // Navigate to event details form
             window.location.href = '/event-details';
