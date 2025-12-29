@@ -766,7 +766,7 @@ app.get('/dj-editor', (c) => {
                 URL.revokeObjectURL(url);
                 
                 // Data exported successfully
-                alert('JSON exported! Check your downloads folder for dj_profiles.json');
+                showSuccess('JSON exported! Check your downloads folder for dj_profiles.json', 'Export Complete');
             }
             
             // Initialize on load
@@ -2166,8 +2166,8 @@ app.get('/dj-services', (c) => {
             document.getElementById('selectedDJName').textContent = djData[djId].name;
           }
           
-          function viewFullBio(djId) {
-            alert(djData[djId].fullBio);
+          async function viewFullBio(djId) {
+            await showAlert(djData[djId].fullBio, djData[djId].name + ' - Full Bio');
           }
           
           function continueToCalendar() async {
