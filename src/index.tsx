@@ -2170,7 +2170,7 @@ app.get('/dj-services', (c) => {
             await showAlert(djData[djId].fullBio, djData[djId].name + ' - Full Bio');
           }
           
-          function continueToCalendar() async {
+          async function continueToCalendar() {
             // Store selected DJ in localStorage
             localStorage.setItem('selectedDJ', selectedDJ);
             
@@ -3218,7 +3218,7 @@ app.get('/photobooth', (c) => {
             document.getElementById('selectedPhotoboothName').textContent = photoboothData[unit].name;
           }
           
-          function continueToCalendar() async {
+          async function continueToCalendar() {
             // Store selected photobooth in localStorage
             localStorage.setItem('selectedPhotobooth', selectedPhotobooth);
             localStorage.setItem('serviceType', 'photobooth');

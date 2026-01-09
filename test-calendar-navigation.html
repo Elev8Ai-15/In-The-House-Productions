@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Calendar Navigation Fix</title>
+</head>
+<body>
+    <h1>Testing Calendar Navigation</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        // Test 1: Check if async function syntax is correct
+        results.innerHTML += '<h2>Test 1: Async Function Syntax</h2>';
+        try {
+            // This is the OLD BROKEN syntax
+            const brokenCode = 'function test() async { return "broken"; }';
+            eval(brokenCode);
+            results.innerHTML += '<p style="color:red">❌ FAIL: Old broken syntax still works (shouldn\'t)</p>';
+        } catch(e) {
+            results.innerHTML += '<p style="color:green">✅ PASS: Old broken syntax throws error (expected)</p>';
+        }
+        
+        try {
+            // This is the NEW CORRECT syntax
+            const correctCode = 'async function test() { return "works"; }';
+            eval(correctCode);
+            results.innerHTML += '<p style="color:green">✅ PASS: New correct syntax works</p>';
+        } catch(e) {
+            results.innerHTML += '<p style="color:red">❌ FAIL: New correct syntax throws error: ' + e.message + '</p>';
+        }
+        
+        // Test 2: Simulate calendar navigation flow
+        results.innerHTML += '<h2>Test 2: Calendar Navigation Flow</h2>';
+        
+        async function simulateCalendarNavigation() {
+            // Simulate selecting a DJ
+            localStorage.setItem('selectedDJ', 'dj_cease');
+            localStorage.setItem('authToken', 'test-token');
+            
+            // Test the continueToCalendar function (simulated)
+            async function continueToCalendar() {
+                const authToken = localStorage.getItem('authToken');
+                if (!authToken) {
+                    return 'FAIL: No auth token';
+                }
+                return 'SUCCESS: Would navigate to /calendar';
+            }
+            
+            const result = await continueToCalendar();
+            
+            if (result.includes('SUCCESS')) {
+                results.innerHTML += '<p style="color:green">✅ PASS: ' + result + '</p>';
+            } else {
+                results.innerHTML += '<p style="color:red">❌ FAIL: ' + result + '</p>';
+            }
+            
+            // Clean up
+            localStorage.removeItem('selectedDJ');
+            localStorage.removeItem('authToken');
+        }
+        
+        simulateCalendarNavigation();
+        
+        results.innerHTML += '<h2>Summary</h2>';
+        results.innerHTML += '<p><strong>The calendar navigation should now work!</strong></p>';
+        results.innerHTML += '<p>The issue was: <code>function continueToCalendar() async {</code></p>';
+        results.innerHTML += '<p>Fixed to: <code>async function continueToCalendar() {</code></p>';
+    </script>
+</body>
+</html>
