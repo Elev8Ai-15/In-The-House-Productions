@@ -2173,6 +2173,9 @@ app.get('/dj-services', (c) => {
           async function continueToCalendar() {
             // Store selected DJ in localStorage
             localStorage.setItem('selectedDJ', selectedDJ);
+            localStorage.setItem('serviceType', 'dj');
+            // Clear any photobooth selection
+            localStorage.removeItem('selectedPhotobooth');
             
             // Check if user is logged in
             const authToken = localStorage.getItem('authToken');
@@ -3222,6 +3225,8 @@ app.get('/photobooth', (c) => {
             // Store selected photobooth in localStorage
             localStorage.setItem('selectedPhotobooth', selectedPhotobooth);
             localStorage.setItem('serviceType', 'photobooth');
+            // Clear any DJ selection
+            localStorage.removeItem('selectedDJ');
             
             // Check if user is logged in
             const authToken = localStorage.getItem('authToken');
