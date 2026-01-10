@@ -1373,12 +1373,29 @@ app.post('/api/bookings/create', async (c) => {
     const { DB, RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = c.env
     const bookingData = await c.req.json()
     
+    // CRITICAL DEBUG: Log received booking data
+    console.log('📥 Booking request received:', {
+      serviceType: bookingData.serviceType,
+      serviceProvider: bookingData.serviceProvider,
+      eventDate: bookingData.eventDate,
+      startTime: bookingData.startTime,
+      endTime: bookingData.endTime,
+      hasEventDetails: !!bookingData.eventDetails,
+      userId: payload.userId
+    })
+    
     // Validate required fields
     const required = ['serviceType', 'serviceProvider', 'eventDate', 'startTime', 'endTime', 'eventDetails']
+    const missing = []
     for (const field of required) {
       if (!bookingData[field]) {
-        return c.json({ error: `Missing required field: ${field}` }, 400)
+        missing.push(field)
       }
+    }
+    
+    if (missing.length > 0) {
+      console.error('❌ Missing required fields:', missing)
+      return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
     
     // Check availability one more time
@@ -2966,6 +2983,49 @@ app.get('/event-details', (c) => {
               const startTime = document.getElementById('startTime').value;
               const endTime = document.getElementById('endTime').value;
               
+              // CRITICAL FIX: Correctly map service provider
+              let serviceType = bookingData.serviceType;
+              let serviceProvider = bookingData.serviceProvider;
+              
+              // Handle DJ bookings
+              if (!serviceType && bookingData.dj) {
+                serviceType = 'dj';
+                serviceProvider = bookingData.dj;
+              }
+              
+              // CRITICAL: Map photobooth unit IDs to database format
+              if (serviceType === 'photobooth') {
+                const photoboothMapping = {
+                  'unit1': 'photobooth_unit1',
+                  'unit2': 'photobooth_unit2',
+                  'photobooth_unit1': 'photobooth_unit1', // Already correct
+                  'photobooth_unit2': 'photobooth_unit2'  // Already correct
+                };
+                serviceProvider = photoboothMapping[serviceProvider] || serviceProvider;
+              }
+              
+              console.log('📤 Creating booking:', {
+                serviceType,
+                serviceProvider,
+                eventDate: bookingData.date,
+                startTime,
+                endTime
+              });
+              
+              // Validate required fields before sending
+              if (!serviceType) {
+                throw new Error('Service type is missing');
+              }
+              if (!serviceProvider) {
+                throw new Error('Service provider is missing');
+              }
+              if (!bookingData.date) {
+                throw new Error('Event date is missing');
+              }
+              if (!startTime || !endTime) {
+                throw new Error('Start time and end time are required');
+              }
+              
               // Create booking
               const response = await fetch('/api/bookings/create', {
                 method: 'POST',
@@ -2974,8 +3034,8 @@ app.get('/event-details', (c) => {
                   'Authorization': \`Bearer \${authToken}\`
                 },
                 body: JSON.stringify({
-                  serviceType: bookingData.serviceType || bookingData.dj,
-                  serviceProvider: bookingData.dj || bookingData.serviceProvider,
+                  serviceType,
+                  serviceProvider,
                   eventDate: bookingData.date,
                   startTime,
                   endTime,
@@ -2985,15 +3045,22 @@ app.get('/event-details', (c) => {
               
               const result = await response.json();
               
+              console.log('📥 Booking response:', { status: response.status, result });
+              
               if (!response.ok) {
-                // If token is invalid/expired, clear storage and redirect to login
-                if (result.error && (result.error.includes('token') || result.error.includes('Token'))) {
+                // CRITICAL: Only redirect to login for actual auth errors (401)
+                // Other errors should show the message without logging out
+                if (response.status === 401) {
+                  console.error('🔒 Authentication failed:', result.error);
                   localStorage.removeItem('authToken');
                   localStorage.removeItem('user');
                   await showAlert('Your session has expired. Please log in again.', 'Session Expired');
                   window.location.href = '/login';
                   return;
                 }
+                
+                // For other errors (400, 409, 500, etc), show the error without logging out
+                console.error('❌ Booking creation failed:', result.error);
                 throw new Error(result.error || 'Booking failed');
               }
               
