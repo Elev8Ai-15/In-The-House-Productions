@@ -2343,7 +2343,14 @@ app.get('/calendar', (c) => {
             
             // Set the provider based on service type
             if (serviceType === 'photobooth') {
-              selectedProvider = selectedPhotobooth;
+              // Map unit1/unit2 to photobooth_unit1/photobooth_unit2 for API calls
+              if (selectedPhotobooth === 'unit1') {
+                selectedProvider = 'photobooth_unit1';
+              } else if (selectedPhotobooth === 'unit2') {
+                selectedProvider = 'photobooth_unit2';
+              } else {
+                selectedProvider = selectedPhotobooth; // In case it's already the full ID
+              }
             } else {
               selectedProvider = selectedDJ;
             }
