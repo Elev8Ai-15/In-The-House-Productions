@@ -1255,6 +1255,21 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
     const startDate = `${year}-${month.padStart(2, '0')}-01`
     const endDate = `${year}-${month.padStart(2, '0')}-31`
     
+    // Calculate number of days in the month
+    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate()
+    
+    // Initialize availability object with all dates in month
+    const availability: Record<string, any> = {}
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${month.padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      availability[dateStr] = {
+        available: true,
+        capacity: 2, // Default capacity
+        remainingSlots: 2,
+        bookings: 0
+      }
+    }
+    
     // For photobooths, check combined bookings
     if (provider.startsWith('photobooth')) {
       const bookings = await DB.prepare(`
@@ -1266,15 +1281,17 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
         GROUP BY event_date
       `).bind(startDate, endDate).all()
       
-      const bookedDates = (bookings.results || [])
-        .filter((b: any) => b.count >= 2)
-        .map((b: any) => b.event_date)
+      // Update availability based on bookings
+      for (const booking of (bookings.results || [])) {
+        const dateStr = booking.event_date as string
+        if (availability[dateStr]) {
+          availability[dateStr].bookings = booking.count
+          availability[dateStr].remainingSlots = 2 - (booking.count as number)
+          availability[dateStr].available = (booking.count as number) < 2
+        }
+      }
       
-      const partiallyBookedDates = (bookings.results || [])
-        .filter((b: any) => b.count === 1)
-        .map((b: any) => b.event_date)
-      
-      return c.json({ bookedDates, partiallyBookedDates, blockedDates: [] })
+      return c.json(availability)
     }
     
     // For DJs, check individual bookings and time slots
@@ -1296,17 +1313,38 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
       AND block_date BETWEEN ? AND ?
     `).bind(provider, startDate, endDate).all()
     
-    const bookedDates = (timeSlots.results || [])
-      .filter((slot: any) => slot.count >= 2 || slot.has_afternoon === 1)
-      .map((slot: any) => slot.event_date)
+    // Mark blocked dates
+    for (const block of (blocks.results || [])) {
+      const dateStr = block.block_date as string
+      if (availability[dateStr]) {
+        availability[dateStr].available = false
+        availability[dateStr].remainingSlots = 0
+        availability[dateStr].blocked = true
+      }
+    }
     
-    const partiallyBookedDates = (timeSlots.results || [])
-      .filter((slot: any) => slot.count === 1 && slot.has_afternoon === 0)
-      .map((slot: any) => slot.event_date)
+    // Update DJ availability based on bookings
+    for (const slot of (timeSlots.results || [])) {
+      const dateStr = slot.event_date as string
+      if (availability[dateStr]) {
+        const count = slot.count as number
+        const hasAfternoon = slot.has_afternoon as number
+        
+        availability[dateStr].bookings = count
+        
+        // DJ can have max 2 bookings per day (morning + afternoon)
+        // Or 1 booking if it's an afternoon booking (>=11:00)
+        if (count >= 2 || hasAfternoon === 1) {
+          availability[dateStr].available = false
+          availability[dateStr].remainingSlots = 0
+        } else {
+          availability[dateStr].available = true
+          availability[dateStr].remainingSlots = 2 - count
+        }
+      }
+    }
     
-    const blockedDates = blocks.results?.map((b: any) => b.block_date) || []
-    
-    return c.json({ bookedDates, partiallyBookedDates, blockedDates })
+    return c.json(availability)
   } catch (error: any) {
     console.error('Fetch availability error:', error)
     return c.json({ error: 'Failed to fetch availability', details: error.message }, 500)
