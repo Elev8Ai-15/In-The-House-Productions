@@ -2319,6 +2319,8 @@ app.get('/calendar', (c) => {
           let currentYear = new Date().getFullYear();
           let selectedDate = null;
           let selectedDJ = null;
+          let selectedProvider = null; // Can be DJ or Photobooth
+          let serviceType = null;
           let availabilityData = {};
           
           const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -2335,22 +2337,33 @@ app.get('/calendar', (c) => {
             }
             
             // Get service type (DJ or Photobooth)
-            const serviceType = localStorage.getItem('serviceType');
+            serviceType = localStorage.getItem('serviceType');
             selectedDJ = localStorage.getItem('selectedDJ');
             const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
             
+            // Set the provider based on service type
+            if (serviceType === 'photobooth') {
+              selectedProvider = selectedPhotobooth;
+            } else {
+              selectedProvider = selectedDJ;
+            }
+            
             // Check if ANY service is selected
-            if (!selectedDJ && !selectedPhotobooth) {
+            if (!selectedProvider) {
               await showAlert('Please select a service first (DJ or Photobooth).', 'Selection Required');
               window.location.href = '/';
               return;
             }
             
+            console.log('Calendar loaded:', { serviceType, selectedProvider, selectedDJ, selectedPhotobooth });
+            
             // Display selected service
             if (serviceType === 'photobooth') {
               const photoboothNames = {
                 'unit1': 'Photobooth Unit 1 (Maria Cecil)',
-                'unit2': 'Photobooth Unit 2 (Cora Scarborough)'
+                'unit2': 'Photobooth Unit 2 (Cora Scarborough)',
+                'photobooth_unit1': 'Photobooth Unit 1 (Maria Cecil)',
+                'photobooth_unit2': 'Photobooth Unit 2 (Cora Scarborough)'
               };
               document.getElementById('selectedDJDisplay').textContent = 
                 'Booking for: ' + (photoboothNames[selectedPhotobooth] || 'Photobooth');
@@ -2457,12 +2470,22 @@ app.get('/calendar', (c) => {
           
           async function loadAvailability() {
             try {
-              // Get availability for current month
-              const provider = selectedDJ;
+              // Get availability for current month using selectedProvider
+              const provider = selectedProvider || selectedDJ;
+              console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
+              
+              if (!provider) {
+                console.warn('No provider selected');
+                availabilityData = {};
+                return;
+              }
+              
               const response = await fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`);
               const data = await response.json();
+              console.log('Availability data loaded:', data);
               availabilityData = data;
             } catch (error) {
+              console.error('Error loading availability:', error);
               // Error handled silently - show user-friendly message
               availabilityData = {};
             }
