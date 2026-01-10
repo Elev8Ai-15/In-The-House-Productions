@@ -2396,28 +2396,52 @@ app.get('/calendar', (c) => {
             selectedDJ = localStorage.getItem('selectedDJ');
             const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
             
+            // CRITICAL DEBUG: Log what we have in localStorage
+            console.log('📦 localStorage values:', {
+              serviceType,
+              selectedDJ,
+              selectedPhotobooth,
+              authToken: !!localStorage.getItem('authToken')
+            });
+            
             // Set the provider based on service type
             if (serviceType === 'photobooth') {
               // Map unit1/unit2 to photobooth_unit1/photobooth_unit2 for API calls
               if (selectedPhotobooth === 'unit1') {
                 selectedProvider = 'photobooth_unit1';
+                console.log('✅ Mapped unit1 → photobooth_unit1');
               } else if (selectedPhotobooth === 'unit2') {
                 selectedProvider = 'photobooth_unit2';
-              } else {
+                console.log('✅ Mapped unit2 → photobooth_unit2');
+              } else if (selectedPhotobooth) {
                 selectedProvider = selectedPhotobooth; // In case it's already the full ID
+                console.log('✅ Using existing photobooth ID:', selectedPhotobooth);
+              } else {
+                console.error('❌ CRITICAL: selectedPhotobooth is null/undefined!');
               }
             } else {
               selectedProvider = selectedDJ;
+              console.log('✅ Using DJ provider:', selectedDJ);
             }
             
             // Check if ANY service is selected
             if (!selectedProvider) {
+              console.error('❌ CRITICAL: No provider selected!', {
+                serviceType,
+                selectedDJ,
+                selectedPhotobooth
+              });
               await showAlert('Please select a service first (DJ or Photobooth).', 'Selection Required');
               window.location.href = '/';
               return;
             }
             
-            console.log('Calendar loaded:', { serviceType, selectedProvider, selectedDJ, selectedPhotobooth });
+            console.log('✅ Calendar loaded successfully:', { 
+              serviceType, 
+              selectedProvider, 
+              selectedDJ, 
+              selectedPhotobooth 
+            });
             
             // Display selected service
             if (serviceType === 'photobooth') {
