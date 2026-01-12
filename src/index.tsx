@@ -932,15 +932,30 @@ app.post('/api/checkout/create-session', async (c) => {
     
     // Get Stripe API key from environment
     const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    const isDevelopmentMode = !STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock')
     
-    if (!STRIPE_SECRET_KEY) {
-      return c.json({
-        error: 'Stripe not configured',
-        message: 'Please add STRIPE_SECRET_KEY to .dev.vars file',
-        instructions: 'Get your key from https://dashboard.stripe.com/test/apikeys',
+    // DEVELOPMENT MODE: Mock payment for testing without Stripe
+    if (isDevelopmentMode) {
+      console.log('⚠️  DEVELOPMENT MODE: Using mock payment (Stripe not configured)')
+      const mockSessionId = 'cs_test_mock_' + Date.now()
+      const baseUrl = new URL(c.req.url).origin
+      
+      // Update booking with mock session ID
+      if (bookingId && DB) {
+        await DB.prepare(`
+          UPDATE bookings 
+          SET stripe_session_id = ?, payment_status = 'pending'
+          WHERE id = ?
+        `).bind(mockSessionId, bookingId).run()
+      }
+      
+      return c.json({ 
+        sessionId: mockSessionId,
+        url: `${baseUrl}/checkout/mock-success?session_id=${mockSessionId}&booking_id=${bookingId}&total=${total}`,
         total,
-        items: lineItems
-      }, 500)
+        developmentMode: true,
+        message: '⚠️  Using mock payment - Add real Stripe key for production'
+      })
     }
     
     // Initialize Stripe client
@@ -1522,6 +1537,22 @@ function calculateHours(startTime: string, endTime: string): number {
 // Helper: Send booking notifications (email + SMS)
 async function sendBookingNotifications(env: any, booking: any) {
   const { DB, RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER } = env
+  
+  // DEVELOPMENT MODE: Mock notifications if Resend not configured
+  const isDevelopmentMode = !RESEND_API_KEY || RESEND_API_KEY.includes('mock')
+  
+  if (isDevelopmentMode) {
+    console.log('⚠️  DEVELOPMENT MODE: Mock email/SMS (Resend/Twilio not configured)')
+    console.log('📧 Would send email to customer')
+    console.log('📧 Would send email to provider')
+    console.log('📱 Would send SMS to provider')
+    console.log('Booking details:', {
+      bookingId: booking.bookingId,
+      eventDate: booking.eventDate,
+      eventName: booking.eventDetails.eventName
+    })
+    return { success: true, developmentMode: true }
+  }
   
   // Get user info
   const user = await DB.prepare(`
@@ -3439,6 +3470,108 @@ app.get('/photobooth', (c) => {
             }
           });
         </script>
+    </body>
+    </html>
+  `)
+})
+
+// Mock Checkout Success Page (Development Mode)
+app.get('/checkout/mock-success', async (c) => {
+  const sessionId = c.req.query('session_id')
+  const bookingId = c.req.query('booking_id')
+  const total = c.req.query('total')
+  
+  // Mark booking as paid in development mode
+  const { DB } = c.env
+  if (bookingId && DB) {
+    await DB.prepare(`
+      UPDATE bookings 
+      SET payment_status = 'paid', 
+          status = 'confirmed'
+      WHERE id = ?
+    `).bind(bookingId).run()
+  }
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Confirmed! - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          body { background: #000; color: #fff; }
+          .success-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            text-align: center;
+            padding: 2rem;
+          }
+          .success-icon {
+            font-size: 5rem;
+            color: #22c55e;
+            animation: bounce 1s ease-in-out;
+          }
+          .dev-badge {
+            display: inline-block;
+            background: #fbbf24;
+            color: #000;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+          }
+        </style>
+    </head>
+    <body>
+        <div class="success-container">
+            <div class="dev-badge">
+                <i class="fas fa-flask mr-2"></i>
+                DEVELOPMENT MODE - Mock Payment
+            </div>
+            <i class="fas fa-check-circle success-icon"></i>
+            <h1 class="text-4xl font-bold mt-6 mb-4" style="color: #22c55e;">
+                Booking Confirmed!
+            </h1>
+            <p class="text-xl mb-6 text-gray-300">
+                Your mock payment was successful and your booking is confirmed.
+            </p>
+            <div class="bg-gray-800 p-4 rounded-lg mb-6 text-left">
+                <h3 class="text-lg font-bold mb-2" style="color: #FFD700;">Booking Details:</h3>
+                <p class="text-gray-300">Session ID: ${sessionId}</p>
+                <p class="text-gray-300">Booking ID: ${bookingId}</p>
+                <p class="text-gray-300">Total: $${total}</p>
+                <p class="text-gray-300 mt-2">Status: <span style="color: #22c55e;">CONFIRMED</span></p>
+            </div>
+            <div class="bg-yellow-900 border-2 border-yellow-500 p-4 rounded-lg mb-6">
+                <p class="text-sm text-yellow-200">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Note:</strong> This is a mock payment for development/testing. 
+                    No real charge was made. Add a real Stripe API key for production.
+                </p>
+            </div>
+            <p class="text-lg mb-4 text-gray-400">
+                <i class="fas fa-envelope mr-2"></i>
+                In production, confirmation emails would be sent.
+            </p>
+            <p class="text-lg mb-8 text-gray-400">
+                <i class="fas fa-sms mr-2"></i>
+                In production, SMS notifications would be sent.
+            </p>
+            <a href="/" class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors">
+                <i class="fas fa-home mr-2"></i>
+                RETURN HOME
+            </a>
+            <p class="text-sm text-gray-500 mt-6">
+                Thank you for choosing In The House Productions!
+            </p>
+        </div>
     </body>
     </html>
   `)
