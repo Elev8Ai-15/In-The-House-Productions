@@ -2850,20 +2850,27 @@ app.get('/calendar', (c) => {
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           
           // Alert and error dialogs
-          async function showAlert(message, title = 'Notice') {
-            alert(title + '\\n\\n' + message);
+          function showAlert(message, title = 'Notice') {
+            return new Promise((resolve) => {
+              alert(title + '\\n\\n' + message);
+              resolve();
+            });
           }
           
-          async function showError(message, title = 'Error') {
-            alert(title + '\\n\\n' + message);
+          function showError(message, title = 'Error') {
+            return new Promise((resolve) => {
+              alert(title + '\\n\\n' + message);
+              resolve();
+            });
           }
           
           // Check authentication and load selection
-          window.addEventListener('DOMContentLoaded', async () => {
+          window.addEventListener('DOMContentLoaded', () => {
             const authToken = localStorage.getItem('authToken');
             if (!authToken) {
-              await showAlert('Please log in to continue booking.', 'Login Required');
-              window.location.href = '/login';
+              showAlert('Please log in to continue booking.', 'Login Required').then(() => {
+                window.location.href = '/login';
+              });
               return;
             }
             
@@ -2907,8 +2914,9 @@ app.get('/calendar', (c) => {
                 selectedDJ,
                 selectedPhotobooth
               });
-              await showAlert('Please select a service first (DJ or Photobooth).', 'Selection Required');
-              window.location.href = '/';
+              showAlert('Please select a service first (DJ or Photobooth).', 'Selection Required').then(() => {
+                window.location.href = '/';
+              });
               return;
             }
             
@@ -2941,24 +2949,23 @@ app.get('/calendar', (c) => {
             
             // Load calendar
             console.log('🗓️  Starting calendar render...');
-            try {
-              await renderCalendar();
+            renderCalendar().then(() => {
               console.log('✅ Calendar render complete!');
-            } catch (error) {
+            }).catch((error) => {
               console.error('❌ Calendar render failed:', error);
               document.getElementById('selectedDJDisplay').textContent = 'ERROR: Calendar failed to load';
               document.getElementById('monthYear').textContent = 'Error loading calendar';
-              await showError('Failed to load calendar. Please try again or contact support.', 'Calendar Error');
-            }
+              showError('Failed to load calendar. Please try again or contact support.', 'Calendar Error');
+            });
           });
           
-          async function renderCalendar() {
+          function renderCalendar() {
             // Update month/year display
             document.getElementById('monthYear').textContent = 
               monthNames[currentMonth] + ' ' + currentYear;
             
             // Load availability data for current month
-            await loadAvailability();
+            return loadAvailability().then(() => {
             
             const grid = document.getElementById('calendarGrid');
             grid.innerHTML = '';
@@ -3037,29 +3044,41 @@ app.get('/calendar', (c) => {
               
               grid.appendChild(dayElement);
             }
+            }); // Close the loadAvailability().then()
           }
           
-          async function loadAvailability() {
-            try {
-              // Get availability for current month using selectedProvider
-              const provider = selectedProvider || selectedDJ;
-              console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
-              
-              if (!provider) {
-                console.warn('No provider selected');
+          function loadAvailability() {
+            return new Promise((resolve, reject) => {
+              try {
+                // Get availability for current month using selectedProvider
+                const provider = selectedProvider || selectedDJ;
+                console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
+                
+                if (!provider) {
+                  console.warn('No provider selected');
+                  availabilityData = {};
+                  resolve();
+                  return;
+                }
+                
+                fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`)
+                  .then(response => response.json())
+                  .then(data => {
+                    console.log('Availability data loaded:', data);
+                    availabilityData = data;
+                    resolve();
+                  })
+                  .catch(error => {
+                    console.error('Error loading availability:', error);
+                    availabilityData = {};
+                    resolve(); // Resolve anyway to not block calendar
+                  });
+              } catch (error) {
+                console.error('Error loading availability:', error);
                 availabilityData = {};
-                return;
+                resolve();
               }
-              
-              const response = await fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`);
-              const data = await response.json();
-              console.log('Availability data loaded:', data);
-              availabilityData = data;
-            } catch (error) {
-              console.error('Error loading availability:', error);
-              // Error handled silently - show user-friendly message
-              availabilityData = {};
-            }
+            });
           }
           
           function selectDate(dateStr) {
