@@ -4,19 +4,24 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://8c94742d.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** 💰 **PRICING UPDATED**
+- **Production (Latest)**: https://50ed69ba.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** ✅ **PRICING CORRECTED**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
-- **Custom Domain**: www.inthehouseproductions.com 🔄 **DNS PROPAGATING**
+- **Custom Domain**: www.inthehouseproductions.com ✅ **LIVE & ACTIVE**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
 - **System Health**: 100/100 - All systems verified and calibrated
-- **Last Deploy**: January 13, 2026 - 💰 Pricing Display Updated
+- **Last Deploy**: January 13, 2026 - ✅ Add-on Pricing Corrected ($50/hr)
 
 ## 🎉 Latest Updates
+- **Jan 13, 2026**: ✅ **Add-on Pricing CORRECTED!** - Accurate hourly rates
+  - **Karaoke**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
+  - **Uplighting**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
+  - Backend `hourlyRate: 50` implemented
+  - Frontend display updated to show "$50/hr additional"
+  - Documentation updated with correct calculations
 - **Jan 13, 2026**: 💰 **Pricing Display Updated!** - Transparent pricing on homepage
   - **DJ Services**: Parties $500 (up to 4 hrs), Weddings $850 (up to 5 hrs), +$100/hr additional
   - **Photobooth**: Unlimited strips $500 (4 hrs), 4x6 prints $550 (4 hrs), +$100/hr additional
-  - **Add-ons**: Karaoke $100 per 4hr event, Uplighting $100 per 4hr event
   - Clear pricing boxes on service cards with red neon styling
   - Backend pricing configuration confirmed accurate
 - **Jan 13, 2026**: 🌐 **Custom Domain Added!** - www.inthehouseproductions.com configured
