@@ -1670,10 +1670,24 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
         <title>In The House Productions - DJ & Photobooth Services</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        
+        <!-- Performance: DNS Prefetch & Preconnect -->
+        <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+        <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+        <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+        
+        <!-- Critical CSS First -->
         <link href="/static/ultra-3d.css" rel="stylesheet">
         <link href="/static/responsive-mobile.css" rel="stylesheet">
+        
+        <!-- Non-blocking: Load Tailwind with defer -->
+        <script src="https://cdn.tailwindcss.com" defer></script>
+        
+        <!-- Non-blocking: Load Font Awesome async -->
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
+        <noscript><link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"></noscript>
+        
         <style>
           /* Color Palette */
           :root {
@@ -1796,7 +1810,7 @@ app.get('/', (c) => {
                             <i class="fas fa-headphones-alt" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
                         <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
-                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" loading="lazy" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
                         </div>
                         <p class="service-card-subtitle breathing-room">
                             Professional DJs spinning the perfect soundtrack for your special event
@@ -1818,7 +1832,7 @@ app.get('/', (c) => {
                             <i class="fas fa-camera-retro" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
                         <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
-                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" loading="lazy" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
                         </div>
                         <p class="service-card-subtitle breathing-room">
                             Fun memories with instant prints and shareable moments
@@ -2149,13 +2163,15 @@ app.get('/', (c) => {
             setTimeout(() => note.remove(), (duration + 5) * 1000);
           }
           
-          // Create notes continuously
-          setInterval(createMusicalNote, 2000);
-          
-          // Initial batch
-          for (let i = 0; i < 10; i++) {
-            setTimeout(createMusicalNote, i * 500);
-          }
+          // Create notes continuously (after page load)
+          requestIdleCallback(() => {
+            setInterval(createMusicalNote, 2000);
+            
+            // Initial batch
+            for (let i = 0; i < 10; i++) {
+              setTimeout(createMusicalNote, i * 500);
+            }
+          }, { timeout: 2000 });
         </script>
     </body>
     </html>
