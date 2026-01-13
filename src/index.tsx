@@ -1668,10 +1668,12 @@ app.get('/', (c) => {
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
         <title>In The House Productions - DJ & Photobooth Services</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <link href="/static/responsive-mobile.css" rel="stylesheet">
         <style>
           /* Color Palette */
           :root {
@@ -1775,43 +1777,43 @@ app.get('/', (c) => {
         <!-- Content -->
         <div class="relative z-10">
             <!-- Header -->
-            <header class="py-12 text-center">
-                <div class="mb-8">
-                    <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" class="mx-auto" style="max-width: 90%; height: auto;">
+            <header class="section-spacing text-center responsive-container">
+                <div class="hero-logo-wrapper breathing-room">
+                    <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="width: 100%; height: auto; display: block;">
                 </div>
-                <div class="flex justify-center gap-4 my-6">
-                    <div class="staff-line w-96"></div>
+                <div class="flex justify-center gap-4 breathing-room">
+                    <div class="staff-line" style="max-width: min(90%, 400px); width: 100%;"></div>
                 </div>
-                <p class="text-2xl text-gold italic" style="color: #FFD700; text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);">"Your Event, Our Expertise"</p>
+                <p class="tagline text-3d-gold">"Your Event, Our Expertise"</p>
             </header>
             
             <!-- Service Cards -->
-            <main class="container mx-auto px-4 py-12">
-                <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <main class="responsive-container section-spacing">
+                <div class="service-grid" style="max-width: 1000px; margin: 0 auto;">
                     <!-- DJ Services Card -->
-                    <div class="service-card chrome-border rounded-lg p-8 cursor-pointer" onclick="window.location.href='/dj-services'">
-                        <div class="text-center mb-6">
-                            <i class="fas fa-headphones-alt text-8xl" style="color: var(--primary-red);"></i>
+                    <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
+                        <div class="service-card-icon">
+                            <i class="fas fa-headphones-alt" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
-                        <div class="text-center mb-4">
-                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" class="mx-auto" style="max-width: 400px; height: auto;">
+                        <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
+                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
                         </div>
-                        <p class="text-chrome-silver text-center mb-6 text-lg">
+                        <p class="service-card-subtitle breathing-room">
                             Professional DJs spinning the perfect soundtrack for your special event
                         </p>
-                        <ul class="text-chrome-silver mb-6 space-y-2">
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 3 Professional DJs</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 20+ Years Experience</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Playlists</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> All Event Types</li>
+                        <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 3 Professional DJs</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 20+ Years Experience</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Custom Playlists</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> All Event Types</li>
                         </ul>
-                        <button class="btn-3d w-full rounded text-uppercase">
-                            SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
+                        <button class="btn-3d btn-responsive">
+                            SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
                         </button>
                     </div>
                     
                     <!-- Photobooth Card -->
-                    <div class="service-card chrome-border rounded-lg p-8 cursor-pointer" onclick="window.location.href='/photobooth'">
+                    <div class="service-card no-select focusable" onclick="window.location.href='/photobooth'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/photobooth'">
                         <div class="text-center mb-6">
                             <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
                         </div>
