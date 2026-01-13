@@ -2765,6 +2765,15 @@ app.get('/calendar', (c) => {
                              'July', 'August', 'September', 'October', 'November', 'December'];
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           
+          // Alert and error dialogs
+          async function showAlert(message, title = 'Notice') {
+            alert(title + '\\n\\n' + message);
+          }
+          
+          async function showError(message, title = 'Error') {
+            alert(title + '\\n\\n' + message);
+          }
+          
           // Check authentication and load selection
           window.addEventListener('DOMContentLoaded', async () => {
             const authToken = localStorage.getItem('authToken');
