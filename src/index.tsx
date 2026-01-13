@@ -2756,6 +2756,7 @@ app.get('/calendar', (c) => {
           let currentYear = new Date().getFullYear();
           let selectedDate = null;
           let selectedDJ = null;
+          let selectedPhotobooth = null; // ADD THIS
           let selectedProvider = null; // Can be DJ or Photobooth
           let serviceType = null;
           let availabilityData = {};
@@ -2776,7 +2777,7 @@ app.get('/calendar', (c) => {
             // Get service type (DJ or Photobooth)
             serviceType = localStorage.getItem('serviceType');
             selectedDJ = localStorage.getItem('selectedDJ');
-            const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
+            selectedPhotobooth = localStorage.getItem('selectedPhotobooth'); // Changed from const
             
             // CRITICAL DEBUG: Log what we have in localStorage
             console.log('📦 localStorage values:', {
