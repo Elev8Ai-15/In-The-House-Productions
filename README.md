@@ -4,14 +4,27 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://8009ac0c.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** 🔧 **CALIBRATED**
+- **Production (Latest)**: https://8c94742d.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** 💰 **PRICING UPDATED**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
+- **Custom Domain**: www.inthehouseproductions.com 🔄 **DNS PROPAGATING**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
 - **System Health**: 100/100 - All systems verified and calibrated
-- **Last Deploy**: January 13, 2026 - 🔧 Full System Calibration Complete
+- **Last Deploy**: January 13, 2026 - 💰 Pricing Display Updated
 
 ## 🎉 Latest Updates
+- **Jan 13, 2026**: 💰 **Pricing Display Updated!** - Transparent pricing on homepage
+  - **DJ Services**: Parties $500 (up to 4 hrs), Weddings $850 (up to 5 hrs), +$100/hr additional
+  - **Photobooth**: Unlimited strips $500 (4 hrs), 4x6 prints $550 (4 hrs), +$100/hr additional
+  - **Add-ons**: Karaoke $100 per 4hr event, Uplighting $100 per 4hr event
+  - Clear pricing boxes on service cards with red neon styling
+  - Backend pricing configuration confirmed accurate
+- **Jan 13, 2026**: 🌐 **Custom Domain Added!** - www.inthehouseproductions.com configured
+  - Domain added to Cloudflare Pages (ID: 5abf8c9b-1453-440b-8f68-1ab7a9aab819)
+  - CNAME record set to webapp-2mf.pages.dev
+  - SSL certificate auto-provisioned
+  - DNS propagation in progress (15-30 minutes)
+  - Documentation: CUSTOM_DOMAIN_COMPLETE.md
 - **Jan 13, 2026**: 🔧 **Full System Calibration Complete!** - Production-ready verification
   - Complete system health scan (100/100 score)
   - Database integrity verified (9 migrations, 10 tables)
