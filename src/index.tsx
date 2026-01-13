@@ -1838,7 +1838,7 @@ app.get('/', (c) => {
                 <!-- Add-On Services Section -->
                 <div class="mt-16">
                     <h3 class="text-3d-logo-12k-gold text-3d-medium mb-8 text-center">⭐ ADD-ON SERVICES ⭐</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto px-4">
                         <!-- Karaoke Setup -->
                         <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('karaoke')">
                             <div class="text-center mb-4">
@@ -1901,6 +1901,22 @@ app.get('/', (c) => {
                                 <p class="text-sm text-chrome-silver">Custom packages</p>
                             </div>
                             <p class="text-sm text-center text-gray-400">Professional wedding photography to capture your special day</p>
+                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
+                                CONTACT US
+                            </button>
+                        </div>
+
+                        <!-- Wedding/Event Coordinator -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('coordinator')">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-clipboard-check text-5xl" style="color: var(--primary-red);"></i>
+                            </div>
+                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Event Coordinator</h4>
+                            <div class="text-center mb-4">
+                                <p class="text-xl font-bold text-primary-red">Info on Request</p>
+                                <p class="text-sm text-chrome-silver">Custom packages</p>
+                            </div>
+                            <p class="text-sm text-center text-gray-400">Professional event coordination for stress-free celebrations</p>
                             <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
                                 CONTACT US
                             </button>
@@ -1978,6 +1994,21 @@ app.get('/', (c) => {
                             'Online gallery delivery',
                             'Custom photo packages',
                             'Contact us for detailed pricing and availability'
+                        ]
+                    },
+                    coordinator: {
+                        icon: 'fa-clipboard-check',
+                        title: 'Wedding/Event Coordinator',
+                        price: 'Custom packages available',
+                        additional: 'Info provided upon request',
+                        description: 'Professional event coordination to ensure your special day runs smoothly from start to finish.',
+                        features: [
+                            'Experienced event coordinator',
+                            'Pre-event planning and consultation',
+                            'Day-of coordination and management',
+                            'Vendor communication and scheduling',
+                            'Timeline creation and execution',
+                            'Stress-free event experience for you and your guests'
                         ]
                     }
                 };
