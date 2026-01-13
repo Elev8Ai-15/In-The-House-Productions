@@ -85,15 +85,15 @@ interface RateLimitEntry {
 
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
-// Clean up old entries every 5 minutes
-setInterval(() => {
+// Clean up old entries on-demand (Cloudflare Workers don't support setInterval)
+function cleanupRateLimitStore() {
   const now = Date.now()
   for (const [key, entry] of rateLimitStore.entries()) {
     if (entry.resetTime < now && (!entry.lockoutUntil || entry.lockoutUntil < now)) {
       rateLimitStore.delete(key)
     }
   }
-}, 5 * 60 * 1000)
+}
 
 /**
  * Rate limiting middleware with progressive penalties
@@ -103,6 +103,11 @@ setInterval(() => {
  */
 export function rateLimit(maxRequests: number = 100, windowMs: number = 60000, maxFailures?: number) {
   return async (c: Context, next: Next) => {
+    // Randomly cleanup old entries (1% chance) to avoid memory leaks
+    if (Math.random() < 0.01) {
+      cleanupRateLimitStore()
+    }
+    
     const clientIp = c.req.header('cf-connecting-ip') ||
                      c.req.header('x-forwarded-for') ||
                      c.req.header('x-real-ip') ||

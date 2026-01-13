@@ -3129,7 +3129,7 @@ app.get('/calendar', (c) => {
           
           function continueToEventDetails() {
             if (!selectedDate) {
-              await showAlert('Please select a date first.', 'Selection Required');
+              showAlert('Please select a date first.', 'Selection Required');
               return;
             }
             
