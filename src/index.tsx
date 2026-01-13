@@ -875,15 +875,15 @@ const servicePricing = {
   // Add-on Services
   karaoke: {
     name: 'Karaoke Add-on',
-    basePrice: 100,        // $100 additional per 4hr event
+    basePrice: 100,        // $100 per 4hr event
     baseHours: 4,
-    hourlyRate: 0          // Flat rate per event
+    hourlyRate: 50         // $50 per additional hour
   },
   uplighting: {
     name: 'Uplighting Add-on',
-    basePrice: 100,        // $100 additional per 4hr event
+    basePrice: 100,        // $100 per 4hr event
     baseHours: 4,
-    hourlyRate: 0          // Flat rate per event
+    hourlyRate: 50         // $50 per additional hour
   }
 }
 
@@ -1951,9 +1951,9 @@ app.get('/', (c) => {
                             <div class="text-center mb-4">
                                 <p class="text-2xl font-bold text-primary-red">$100</p>
                                 <p class="text-sm text-chrome-silver">Per 4-hour event</p>
-                                <p class="text-xs text-gray-400 mt-1">Up to 6 lights</p>
+                                <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
                             </div>
-                            <p class="text-sm text-center text-gray-400">Transform your venue with customizable ambient lighting</p>
+                            <p class="text-sm text-center text-gray-400">Transform your venue with customizable ambient lighting (up to 6 lights)</p>
                             <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
                                 LEARN MORE
                             </button>
