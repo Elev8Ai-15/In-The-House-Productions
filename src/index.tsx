@@ -2,16 +2,36 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import Stripe from 'stripe'
-import { 
-  hashPassword, 
-  verifyPassword, 
-  createToken, 
+import {
+  hashPassword,
+  verifyPassword,
+  createToken,
   verifyToken,
   isValidEmail,
   isValidPhone,
   isValidPassword,
   sanitizeInput
 } from './auth'
+import {
+  generateMetaTags,
+  generateOrganizationSchema,
+  generateServiceSchema,
+  generateBreadcrumbSchema,
+  generateLocalBusinessSchema,
+  generateSitemap,
+  generateRobotsTxt
+} from './seo-helpers'
+import {
+  securityHeaders,
+  rateLimit,
+  validateAndSanitize
+} from './security-middleware'
+import {
+  generateSkipLinks,
+  generateAriaLiveRegion,
+  generateFocusStyles,
+  generateAccessibilityJS
+} from './accessibility-helpers'
 
 type Bindings = {
   DB: D1Database
@@ -30,11 +50,31 @@ const getJWTSecret = (env: any) => {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// Apply security headers to all routes (Zero-Trust Security)
+app.use('*', securityHeaders)
+
 // Enable CORS
 app.use('/api/*', cors())
 
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
+
+// Add rate limiting to authentication endpoints
+app.use('/api/auth/login', rateLimit(5, 60000, 15)) // 5 requests per minute, lockout after 15 failures
+app.use('/api/auth/register', rateLimit(3, 60000)) // 3 registrations per minute
+
+// Add rate limiting to API endpoints
+app.use('/api/*', rateLimit(100, 60000)) // 100 requests per minute for general API
+
+// SEO Routes
+app.get('/robots.txt', (c) => {
+  return c.text(generateRobotsTxt())
+})
+
+app.get('/sitemap.xml', (c) => {
+  c.header('Content-Type', 'application/xml')
+  return c.text(generateSitemap())
+})
 
 // API Routes
 app.get('/api/health', (c) => {
@@ -1723,6 +1763,8 @@ Price: $${booking.totalPrice}
 
 // Landing Page
 app.get('/', (c) => {
+  const baseUrl = 'https://www.inthehouseproductions.com'
+
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -1730,7 +1772,18 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
         <title>In The House Productions - DJ & Photobooth Services</title>
-        
+
+        ${generateMetaTags({
+          title: 'In The House Productions - Professional DJ & Photobooth Services',
+          description: 'Premium DJ and photobooth services for weddings, corporate events, and private parties. Professional entertainment with state-of-the-art equipment and experienced DJs. Book your event today!',
+          canonical: '/',
+          keywords: 'DJ services, photobooth rental, wedding DJ, party DJ, corporate events, event entertainment, professional DJ, photobooth services, karaoke, uplighting',
+          ogImage: `${baseUrl}/static/hero-logo-3d-v2.png`
+        }, baseUrl)}
+
+        ${generateOrganizationSchema(baseUrl)}
+        ${generateLocalBusinessSchema(baseUrl)}
+
         <!-- Performance: DNS Prefetch & Preconnect -->
         <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -1843,15 +1896,21 @@ app.get('/', (c) => {
             margin: 10px 0;
           }
         </style>
+
+        ${generateFocusStyles()}
+        ${generateAccessibilityJS()}
     </head>
     <body class="min-h-screen">
+        ${generateSkipLinks()}
+        ${generateAriaLiveRegion()}
+
         <!-- Animated Musical Notes Background -->
-        <div id="musical-background"></div>
-        
+        <div id="musical-background" aria-hidden="true"></div>
+
         <!-- Content -->
         <div class="relative z-10">
             <!-- Header -->
-            <header class="section-spacing text-center responsive-container">
+            <header id="navigation" role="banner" class="section-spacing text-center responsive-container">
                 <div class="hero-logo-wrapper breathing-room">
                     <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="width: 100%; height: auto; display: block;">
                 </div>
@@ -1860,12 +1919,12 @@ app.get('/', (c) => {
                 </div>
                 <p class="tagline text-3d-gold">"Your Event, Our Expertise"</p>
             </header>
-            
+
             <!-- Service Cards -->
-            <main class="responsive-container section-spacing">
+            <main id="main-content" role="main" class="responsive-container section-spacing">
                 <div class="service-grid" style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 0 1rem;">
                     <!-- DJ Services Card -->
-                    <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
+                    <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" aria-label="Book DJ Services - Professional DJs starting at $500" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
                         <div class="service-card-icon">
                             <i class="fas fa-headphones-alt" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
@@ -1893,7 +1952,7 @@ app.get('/', (c) => {
                     </div>
                     
                     <!-- Photobooth Card -->
-                    <div class="service-card no-select focusable" onclick="window.location.href='/photobooth'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/photobooth'">
+                    <div class="service-card no-select focusable" onclick="window.location.href='/photobooth'" role="button" tabindex="0" aria-label="Book Photobooth Services - Premium photobooths starting at $500" onkeypress="if(event.key==='Enter')window.location.href='/photobooth'">
                         <div class="service-card-icon">
                             <i class="fas fa-camera-retro" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
@@ -2246,6 +2305,8 @@ app.get('/', (c) => {
 
 // DJ Services Page - Profile Selection
 app.get('/dj-services', (c) => {
+  const baseUrl = 'https://www.inthehouseproductions.com'
+
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -2253,6 +2314,27 @@ app.get('/dj-services', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>DJ Services - In The House Productions</title>
+
+        ${generateMetaTags({
+          title: 'Professional DJ Services - Weddings, Parties & Corporate Events',
+          description: 'Choose from our roster of experienced professional DJs: DJ Cease, DJ Elev8, and TKO The DJ. Specializing in weddings, parties, and corporate events with customizable packages starting at $500.',
+          canonical: '/dj-services',
+          keywords: 'professional DJ, wedding DJ, party DJ, corporate event DJ, DJ services, event entertainment, DJ booking',
+          ogImage: `${baseUrl}/static/dj-page-hero-3d.png`
+        }, baseUrl)}
+
+        ${generateServiceSchema({
+          name: 'Professional DJ Services',
+          description: 'Expert DJs for all event types with state-of-the-art equipment and extensive music libraries',
+          price: '500.00',
+          image: `${baseUrl}/static/dj-page-hero-3d.png`
+        }, baseUrl)}
+
+        ${generateBreadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'DJ Services', url: '/dj-services' }
+        ], baseUrl)}
+
         <link href="/static/ultra-3d.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -3498,6 +3580,8 @@ app.get('/event-details', (c) => {
 
 // Photobooth Page
 app.get('/photobooth', (c) => {
+  const baseUrl = 'https://www.inthehouseproductions.com'
+
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -3505,6 +3589,27 @@ app.get('/photobooth', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Photobooth Services - In The House Productions</title>
+
+        ${generateMetaTags({
+          title: 'Premium Photobooth Rentals - Weddings, Parties & Corporate Events',
+          description: 'Professional photobooth rental services with instant sharing, custom backdrops, and unlimited prints. Perfect for weddings, parties, and corporate events. Starting at $500 for 4 hours.',
+          canonical: '/photobooth',
+          keywords: 'photobooth rental, photo booth, wedding photobooth, party photobooth, corporate photobooth, instant photo prints, photo booth props',
+          ogImage: `${baseUrl}/static/photobooth-page-hero-3d.png`
+        }, baseUrl)}
+
+        ${generateServiceSchema({
+          name: 'Premium Photobooth Rental Services',
+          description: 'Professional photobooths with instant sharing, unlimited prints, and custom backdrops for all event types',
+          price: '500.00',
+          image: `${baseUrl}/static/photobooth-page-hero-3d.png`
+        }, baseUrl)}
+
+        ${generateBreadcrumbSchema([
+          { name: 'Home', url: '/' },
+          { name: 'Photobooth Services', url: '/photobooth' }
+        ], baseUrl)}
+
         <link href="/static/ultra-3d.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
