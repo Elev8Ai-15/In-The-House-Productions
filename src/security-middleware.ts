@@ -13,9 +13,9 @@ export async function securityHeaders(c: Context, next: Next) {
   const csp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com",
-    "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
-    "font-src 'self' https://cdn.jsdelivr.net",
+    "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com",
     "connect-src 'self' https://api.stripe.com",
     "frame-src https://js.stripe.com",
     "object-src 'none'",
@@ -58,8 +58,9 @@ export async function securityHeaders(c: Context, next: Next) {
 
   // Cross-Origin policies
   c.header('Cross-Origin-Opener-Policy', 'same-origin')
-  c.header('Cross-Origin-Resource-Policy', 'same-origin')
-  c.header('Cross-Origin-Embedder-Policy', 'require-corp')
+  c.header('Cross-Origin-Resource-Policy', 'cross-origin')
+  // Relaxed COEP to allow external resources (fonts, CDNs)
+  // c.header('Cross-Origin-Embedder-Policy', 'require-corp')
 
   // Remove server identification
   c.header('X-Powered-By', '')
