@@ -1863,7 +1863,7 @@ app.get('/', (c) => {
             
             <!-- Service Cards -->
             <main class="responsive-container section-spacing">
-                <div class="service-grid" style="max-width: 1000px; margin: 0 auto;">
+                <div class="service-grid" style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 0 1rem;">
                     <!-- DJ Services Card -->
                     <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
                         <div class="service-card-icon">
@@ -1875,8 +1875,8 @@ app.get('/', (c) => {
                         <p class="service-card-subtitle breathing-room">
                             Professional DJs spinning the perfect soundtrack for your special event
                         </p>
-                        <div style="background: rgba(227, 30, 36, 0.15); border: 2px solid var(--primary-red); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
-                            <p style="font-size: 1.5rem; font-weight: bold; color: var(--primary-red); text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
+                        <div style="background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%); border: 1px solid rgba(192, 192, 192, 0.3); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
+                            <p style="font-size: 1.5rem; font-weight: bold; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
                             <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Parties (up to 4 hrs)</p>
                             <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Weddings: $850 (up to 5 hrs)</p>
                             <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
@@ -1903,8 +1903,8 @@ app.get('/', (c) => {
                         <p class="service-card-subtitle breathing-room">
                             Fun memories with instant prints and shareable moments
                         </p>
-                        <div style="background: rgba(227, 30, 36, 0.15); border: 2px solid var(--primary-red); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
-                            <p style="font-size: 1.5rem; font-weight: bold; color: var(--primary-red); text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
+                        <div style="background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%); border: 1px solid rgba(192, 192, 192, 0.3); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
+                            <p style="font-size: 1.5rem; font-weight: bold; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
                             <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4 hours unlimited strips</p>
                             <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4x6 Prints: $550 (4 hrs)</p>
                             <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
