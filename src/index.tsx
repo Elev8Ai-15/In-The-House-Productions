@@ -2051,6 +2051,57 @@ app.get('/', (c) => {
                 }
                 </script>
                 
+                <!-- Preferred Event Vendors Section -->
+                <div class="mt-20">
+                    <h3 class="text-3d-logo-12k-gold text-3d-medium mb-8 text-center">🤝 PREFERRED EVENT VENDORS 🤝</h3>
+                    <p class="text-center text-chrome-silver mb-8 max-w-3xl mx-auto px-4">
+                        We're proud to partner with these exceptional venues across the region. 
+                        Professional service and unforgettable celebrations!
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto px-4">
+                        <!-- DK Farms -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">🚜</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">DK Farms</h4>
+                        </div>
+
+                        <!-- The Big Red Barn -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">🏚️</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">The Big Red Barn</h4>
+                        </div>
+
+                        <!-- Garden Gate -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">🌸</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">Garden Gate</h4>
+                        </div>
+
+                        <!-- Almost Heaven -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">☁️</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">Almost Heaven</h4>
+                        </div>
+
+                        <!-- Circle C Farms -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">⭕</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">Circle C Farms</h4>
+                        </div>
+
+                        <!-- Barn Yard -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                            <div class="text-4xl mb-2">🐄</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">Barn Yard</h4>
+                        </div>
+                    </div>
+                    <p class="text-center text-gray-400 text-sm mt-6 px-4">
+                        <i class="fas fa-star mr-1" style="color: var(--primary-red);"></i>
+                        Trusted partners for exceptional events
+                        <i class="fas fa-star ml-1" style="color: var(--primary-red);"></i>
+                    </p>
+                </div>
+                
                 <!-- Auth Buttons -->
                 <div class="mt-12 text-center space-x-4">
                     <button onclick="window.location.href='/register'" class="btn-red rounded px-8 py-3">
