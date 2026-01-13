@@ -4,7 +4,7 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://61a3fdc1.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
+- **Production (Latest)**: https://9930a63c.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
@@ -16,6 +16,7 @@
   - Uplighting: $100/4hr event (up to 6 lights)
   - Foam Pit Rental: $500/4hr event ($100/hr additional)
   - Wedding Photography: Info on request (custom packages)
+  - Wedding/Event Coordinator: Info on request (custom packages)
   - Interactive service cards with detailed modal popups
   - Professional pricing display and feature lists
   - Responsive grid layout (mobile → tablet → desktop)
