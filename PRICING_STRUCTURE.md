@@ -55,13 +55,13 @@ Both units can be booked simultaneously for larger events (double the price).
 
 #### Karaoke Setup
 - **Price**: $100 per 4-hour event
+- **Additional Hours**: $50 per hour
 - **Includes**: Professional karaoke system with extensive song library
-- **Additional Hours**: Included in base DJ service additional hours
 
 #### Uplighting
 - **Price**: $100 per 4-hour event
+- **Additional Hours**: $50 per hour
 - **Includes**: Up to 6 LED uplights with customizable colors
-- **Additional Hours**: Included in base DJ service additional hours
 
 #### Foam Pit Rental
 - **Price**: $500 per 4-hour event
@@ -147,12 +147,12 @@ const servicePricing = {
   karaoke: {
     basePrice: 100,
     baseHours: 4,
-    hourlyRate: 0        // Flat rate per event
+    hourlyRate: 50         // $50 per additional hour
   },
   uplighting: {
     basePrice: 100,
     baseHours: 4,
-    hourlyRate: 0        // Flat rate per event
+    hourlyRate: 50         // $50 per additional hour
   }
 }
 ```
