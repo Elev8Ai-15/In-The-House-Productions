@@ -2026,17 +2026,17 @@ app.get('/dj-services', (c) => {
     <body class="min-h-screen">
         <!-- Professional Modal -->
         <div id="proModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);z-index:9999;justify-content:center;align-items:center;">
-            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:32px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
-                <div id="proModalIcon" style="text-align:center;font-size:64px;margin-bottom:20px;"></div>
-                <h2 id="proModalTitle" style="color:white;font-size:24px;font-weight:bold;text-align:center;margin-bottom:16px;"></h2>
-                <p id="proModalMsg" style="color:#C0C0C0;font-size:16px;text-align:center;line-height:1.6;margin-bottom:24px;"></p>
-                <div id="proModalBtns" style="display:flex;gap:12px;justify-content:center;"></div>
+            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:24px;max-width:440px;width:92%;margin:0 auto;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
+                <div id="proModalIcon" style="text-align:center;font-size:48px;margin-bottom:16px;"></div>
+                <h2 id="proModalTitle" style="color:white;font-size:20px;font-weight:bold;text-align:center;margin-bottom:12px;"></h2>
+                <p id="proModalMsg" style="color:#C0C0C0;font-size:15px;text-align:center;line-height:1.5;margin-bottom:20px;"></p>
+                <div id="proModalBtns" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>
             </div>
         </div>
         <style>
         @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
         #proModal.show{display:flex!important}
-        .pro-btn{padding:12px 32px;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
+        .pro-btn{padding:12px 24px;min-height:48px;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
         .pro-btn-primary{background:linear-gradient(135deg,#DC143C,#ff1744);color:white}
         .pro-btn-primary:hover{box-shadow:0 6px 20px rgba(220,20,60,0.6);transform:translateY(-2px)}
         .pro-btn-secondary{background:linear-gradient(135deg,#555,#777);color:white}
@@ -2045,7 +2045,7 @@ app.get('/dj-services', (c) => {
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
-                <img src="/static/dj-page-hero-3d.png" alt="SELECT YOUR DJ" class="mx-auto mb-4" style="max-width: 600px; height: auto;">
+                <img src="/static/dj-page-hero-3d.png" alt="SELECT YOUR DJ" class="mx-auto mb-4" style="width: 100%; max-width: 480px; height: auto;">
                 <p class="text-chrome-silver text-xl">Choose from our professional DJs</p>
                 <p class="text-gray-400 mt-2">
                     <i class="fas fa-info-circle mr-2"></i>
@@ -3266,17 +3266,17 @@ app.get('/photobooth', (c) => {
     <body class="min-h-screen">
         <!-- Professional Modal -->
         <div id="proModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);z-index:9999;justify-content:center;align-items:center;">
-            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:32px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
-                <div id="proModalIcon" style="text-align:center;font-size:64px;margin-bottom:20px;"></div>
-                <h2 id="proModalTitle" style="color:white;font-size:24px;font-weight:bold;text-align:center;margin-bottom:16px;"></h2>
-                <p id="proModalMsg" style="color:#C0C0C0;font-size:16px;text-align:center;line-height:1.6;margin-bottom:24px;"></p>
-                <div id="proModalBtns" style="display:flex;gap:12px;justify-content:center;"></div>
+            <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:2px solid #FFD700;border-radius:16px;padding:24px;max-width:440px;width:92%;margin:0 auto;box-shadow:0 20px 60px rgba(220,20,60,0.5);animation:slideUp 0.3s ease;">
+                <div id="proModalIcon" style="text-align:center;font-size:48px;margin-bottom:16px;"></div>
+                <h2 id="proModalTitle" style="color:white;font-size:20px;font-weight:bold;text-align:center;margin-bottom:12px;"></h2>
+                <p id="proModalMsg" style="color:#C0C0C0;font-size:15px;text-align:center;line-height:1.5;margin-bottom:20px;"></p>
+                <div id="proModalBtns" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>
             </div>
         </div>
         <style>
         @keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
         #proModal.show{display:flex!important}
-        .pro-btn{padding:12px 32px;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
+        .pro-btn{padding:12px 24px;min-height:48px;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;transition:all 0.3s;text-transform:uppercase}
         .pro-btn-primary{background:linear-gradient(135deg,#DC143C,#ff1744);color:white}
         .pro-btn-primary:hover{box-shadow:0 6px 20px rgba(220,20,60,0.6);transform:translateY(-2px)}
         .pro-btn-secondary{background:linear-gradient(135deg,#555,#777);color:white}
@@ -3285,7 +3285,7 @@ app.get('/photobooth', (c) => {
         <div class="container mx-auto px-4 py-8">
             <!-- Header -->
             <div class="text-center mb-8">
-                <img src="/static/photobooth-page-hero-3d.png" alt="SELECT YOUR PHOTOBOOTH" class="mx-auto mb-4" style="max-width: 600px; height: auto;">
+                <img src="/static/photobooth-page-hero-3d.png" alt="SELECT YOUR PHOTOBOOTH" class="mx-auto mb-4" style="width: 100%; max-width: 480px; height: auto;">
                 <p class="text-chrome-silver text-xl">Choose from our professional photobooths</p>
                 <p class="text-gray-400 mt-2">
                     <i class="fas fa-info-circle mr-2"></i>
