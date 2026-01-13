@@ -1932,7 +1932,7 @@ app.get('/', (c) => {
                             </div>
                             <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Karaoke Setup</h4>
                             <div class="text-center mb-4">
-                                <p class="text-2xl font-bold text-primary-red">$100</p>
+                                <p class="text-2xl font-bold text-primary-red">Additional $100</p>
                                 <p class="text-sm text-chrome-silver">Per 4-hour event</p>
                                 <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
                             </div>
@@ -1949,7 +1949,7 @@ app.get('/', (c) => {
                             </div>
                             <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Uplighting</h4>
                             <div class="text-center mb-4">
-                                <p class="text-2xl font-bold text-primary-red">$100</p>
+                                <p class="text-2xl font-bold text-primary-red">Additional $100</p>
                                 <p class="text-sm text-chrome-silver">Per 4-hour event</p>
                                 <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
                             </div>
