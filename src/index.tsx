@@ -801,29 +801,89 @@ app.get('/api/services/photobooth', (c) => {
 
 // Service pricing configuration
 const servicePricing = {
+  // DJ Services
+  dj: {
+    name: 'DJ Service',
+    party: {
+      basePrice: 500,      // Up to 4 hours
+      baseHours: 4,
+      hourlyRate: 100      // $100 per additional hour
+    },
+    wedding: {
+      basePrice: 850,      // Up to 5 hours
+      baseHours: 5,
+      hourlyRate: 100      // $100 per additional hour
+    }
+  },
+  
+  // Individual DJ pricing (use party rates by default)
   dj_cease: {
     name: 'DJ Cease (Mike Cecil)',
-    basePrice: 500,
-    hourlyRate: 150,
-    minHours: 3
+    basePrice: 500,        // Parties up to 4 hrs
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4
   },
   dj_elev8: {
     name: 'DJ Elev8 (Brad Powell)',
-    basePrice: 500,
-    hourlyRate: 150,
-    minHours: 3
+    basePrice: 500,        // Parties up to 4 hrs
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4
   },
   tko_the_dj: {
     name: 'TKOtheDJ (Joey Tate)',
-    basePrice: 450,
-    hourlyRate: 125,
-    minHours: 3
+    basePrice: 500,        // Parties up to 4 hrs
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4
+  },
+  
+  // Photobooth Services
+  photobooth_unit1: {
+    name: 'Photobooth Unit 1 (Unlimited Strips)',
+    basePrice: 500,        // 4 hours unlimited strips
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4,
+    printType: 'strips'
+  },
+  photobooth_unit2: {
+    name: 'Photobooth Unit 2 (Unlimited Strips)',
+    basePrice: 500,        // 4 hours unlimited strips
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4,
+    printType: 'strips'
+  },
+  photobooth_4x6: {
+    name: 'Photobooth (4x6 Prints)',
+    basePrice: 550,        // 4 hours with 4x6 prints
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4,
+    printType: '4x6'
   },
   photobooth: {
     name: 'Photobooth Service',
-    basePrice: 400,
+    basePrice: 500,        // Default to strips
+    baseHours: 4,
     hourlyRate: 100,
-    minHours: 2
+    minHours: 4
+  },
+  
+  // Add-on Services
+  karaoke: {
+    name: 'Karaoke Add-on',
+    basePrice: 100,        // $100 additional per 4hr event
+    baseHours: 4,
+    hourlyRate: 0          // Flat rate per event
+  },
+  uplighting: {
+    name: 'Uplighting Add-on',
+    basePrice: 100,        // $100 additional per 4hr event
+    baseHours: 4,
+    hourlyRate: 0          // Flat rate per event
   }
 }
 
@@ -1815,6 +1875,12 @@ app.get('/', (c) => {
                         <p class="service-card-subtitle breathing-room">
                             Professional DJs spinning the perfect soundtrack for your special event
                         </p>
+                        <div style="background: rgba(227, 30, 36, 0.15); border: 2px solid var(--primary-red); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                            <p style="font-size: 1.5rem; font-weight: bold; color: var(--primary-red); text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
+                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Parties (up to 4 hrs)</p>
+                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Weddings: $850 (up to 5 hrs)</p>
+                            <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
+                        </div>
                         <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
                             <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 3 Professional DJs</li>
                             <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 20+ Years Experience</li>
@@ -1837,6 +1903,12 @@ app.get('/', (c) => {
                         <p class="service-card-subtitle breathing-room">
                             Fun memories with instant prints and shareable moments
                         </p>
+                        <div style="background: rgba(227, 30, 36, 0.15); border: 2px solid var(--primary-red); border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                            <p style="font-size: 1.5rem; font-weight: bold; color: var(--primary-red); text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
+                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4 hours unlimited strips</p>
+                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4x6 Prints: $550 (4 hrs)</p>
+                            <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
+                        </div>
                         <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
                             <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 2 Professional Units</li>
                             <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Unlimited Prints</li>
