@@ -4,13 +4,21 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://77258e83.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
+- **Production (Latest)**: https://61a3fdc1.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
-- **Last Deploy**: January 13, 2026 - 📱 Complete Mobile Responsive Optimization
+- **Last Deploy**: January 13, 2026 - ✨ Add-On Services with Pricing
 
 ## 🎉 Latest Updates
+- **Jan 13, 2026**: ✨ **Add-On Services Live!** - Real pricing and interactive modals
+  - Karaoke Setup: $100/4hr event ($50/hr additional)
+  - Uplighting: $100/4hr event (up to 6 lights)
+  - Foam Pit Rental: $500/4hr event ($100/hr additional)
+  - Wedding Photography: Info on request (custom packages)
+  - Interactive service cards with detailed modal popups
+  - Professional pricing display and feature lists
+  - Responsive grid layout (mobile → tablet → desktop)
 - **Jan 13, 2026**: 📱 **Photobooth Card Fixed!** - Complete responsive consistency
   - Applied same responsive classes as DJ card
   - Icon wrapper with progressive sizing (70px → 130px)
@@ -18,26 +26,13 @@
   - Card properly centered (90% → 85% → 400px → 450px)
   - Consistent spacing and button styling
   - Both service cards now perfectly matched!
-- **Jan 13, 2026**: 📱 **Modal & Logo Fixes!** - Better mobile centering
-  - Login modal: Reduced size (500px → 440px), better proportions
-  - Modal elements: Smaller icon (48px), readable text (20px/15px)
-  - Touch-friendly buttons with flex-wrap for multi-button modals
-  - Page hero logos: 20% smaller (600px → 480px) for better mobile fit
-  - All modals perfectly centered with consistent styling
 - **Jan 13, 2026**: 📱 **Mobile UX Optimized!** - Responsive design overhaul
-  - Smart logo scaling (100% mobile → 60% desktop)
-  - Readable tagline sizing (1.5rem → 2rem)
-  - Compact service cards (90% → 85% width)
-  - Better spacing and breathing room
-  - Touch-friendly buttons (min 50px height)
-  - Preserves retro/neon brand identity
-  - **Test it**: Looks amazing on mobile now! 🎊
+  - Smart logo scaling, readable tagline sizing
+  - Compact service cards, better spacing
+  - Touch-friendly buttons, retro brand preserved
 - **Jan 12, 2026**: ✅ **100% OPERATIONAL!** - System now works completely!
-  - Added development mode with mock Stripe payments
-  - Added mock email/SMS notifications
+  - Development mode with mock payments/emails
   - Complete booking flow works without external API keys
-  - Easy switch to production mode by adding real keys
-  - **Test it now**: Full booking flow from login to confirmation! 🎊
 
 ## ✅ Currently Completed Features
 
