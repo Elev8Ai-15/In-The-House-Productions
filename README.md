@@ -4,12 +4,12 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://06071531.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** ⚡ **OPTIMIZED**
+- **Production (Latest)**: https://86bf03c0.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** ⚡ **OPTIMIZED**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
 - **Performance**: Server response 0.19s, HTML 29.6KB
-- **Last Deploy**: January 13, 2026 - ⚡ Major Performance Optimizations
+- **Last Deploy**: January 13, 2026 - 🏢 Vendor Updates (Still Creek added)
 
 ## 🎉 Latest Updates
 - **Jan 13, 2026**: ⚡ **Major Performance Optimizations!** - 95% faster page loads
