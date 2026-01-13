@@ -1835,28 +1835,190 @@ app.get('/', (c) => {
                     </div>
                 </div>
                 
-                <!-- Coming Soon Section -->
-                <div class="mt-16 text-center">
-                    <h3 class="text-3d-logo-12k-gold text-3d-medium mb-6">⭐ MORE SERVICES COMING SOON ⭐</h3>
-                    <div class="flex justify-center gap-8 flex-wrap">
-                        <div class="text-chrome-silver opacity-50">
-                            <i class="fas fa-lightbulb text-4xl mb-2"></i>
-                            <p>Professional Lighting</p>
+                <!-- Add-On Services Section -->
+                <div class="mt-16">
+                    <h3 class="text-3d-logo-12k-gold text-3d-medium mb-8 text-center">⭐ ADD-ON SERVICES ⭐</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto px-4">
+                        <!-- Karaoke Setup -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('karaoke')">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-microphone text-5xl" style="color: var(--primary-red);"></i>
+                            </div>
+                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Karaoke Setup</h4>
+                            <div class="text-center mb-4">
+                                <p class="text-2xl font-bold text-primary-red">$100</p>
+                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
+                                <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
+                            </div>
+                            <p class="text-sm text-center text-gray-400">Professional karaoke system with extensive song library</p>
+                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
+                                LEARN MORE
+                            </button>
                         </div>
-                        <div class="text-chrome-silver opacity-50">
-                            <i class="fas fa-video text-4xl mb-2"></i>
-                            <p>Event Videography</p>
+
+                        <!-- Uplighting -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('uplighting')">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-lightbulb text-5xl" style="color: var(--primary-red);"></i>
+                            </div>
+                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Uplighting</h4>
+                            <div class="text-center mb-4">
+                                <p class="text-2xl font-bold text-primary-red">$100</p>
+                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
+                                <p class="text-xs text-gray-400 mt-1">Up to 6 lights</p>
+                            </div>
+                            <p class="text-sm text-center text-gray-400">Transform your venue with customizable ambient lighting</p>
+                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
+                                LEARN MORE
+                            </button>
                         </div>
-                        <div class="text-chrome-silver opacity-50">
-                            <i class="fas fa-microphone text-4xl mb-2"></i>
-                            <p>MC Services</p>
+
+                        <!-- Foam Pit -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('foampit')">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-cloud text-5xl" style="color: var(--primary-red);"></i>
+                            </div>
+                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Foam Pit</h4>
+                            <div class="text-center mb-4">
+                                <p class="text-2xl font-bold text-primary-red">$500</p>
+                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
+                                <p class="text-xs text-gray-400 mt-1">$100/hr additional</p>
+                            </div>
+                            <p class="text-sm text-center text-gray-400">Ultimate party experience with foam machine rental</p>
+                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
+                                LEARN MORE
+                            </button>
                         </div>
-                        <div class="text-chrome-silver opacity-50">
-                            <i class="fas fa-music text-4xl mb-2"></i>
-                            <p>Karaoke Setup</p>
+
+                        <!-- Wedding Photography -->
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('photography')">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-camera text-5xl" style="color: var(--primary-red);"></i>
+                            </div>
+                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Wedding Photography</h4>
+                            <div class="text-center mb-4">
+                                <p class="text-xl font-bold text-primary-red">Info on Request</p>
+                                <p class="text-sm text-chrome-silver">Custom packages</p>
+                            </div>
+                            <p class="text-sm text-center text-gray-400">Professional wedding photography to capture your special day</p>
+                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
+                                CONTACT US
+                            </button>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Service Detail Modal -->
+                <div id="serviceModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);backdrop-filter:blur(5px);z-index:9999;justify-content:center;align-items:center;">
+                    <div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border:3px solid var(--primary-red);border-radius:16px;padding:32px;max-width:600px;width:92%;margin:0 auto;box-shadow:0 20px 60px rgba(227,30,36,0.8);">
+                        <div id="serviceModalContent"></div>
+                        <button onclick="closeServiceModal()" class="mt-6 w-full bg-chrome-silver text-black py-3 rounded font-bold hover:bg-white transition-all">
+                            CLOSE
+                        </button>
+                    </div>
+                </div>
+                
+                <script>
+                const serviceDetails = {
+                    karaoke: {
+                        icon: 'fa-microphone',
+                        title: 'Karaoke Setup',
+                        price: '$100 per 4-hour event',
+                        additional: '$50 per additional hour',
+                        description: 'Professional karaoke system with extensive song library covering all genres and eras.',
+                        features: [
+                            'Extensive song library (1000s of songs)',
+                            'Professional audio equipment',
+                            'Multiple microphones',
+                            'Easy-to-use song selection',
+                            'Lyrics display screens',
+                            'Perfect for weddings, parties, and corporate events'
+                        ]
+                    },
+                    uplighting: {
+                        icon: 'fa-lightbulb',
+                        title: 'Uplighting',
+                        price: '$100 per 4-hour event',
+                        additional: 'Up to 6 lights included',
+                        description: 'Transform your venue with customizable LED uplighting to match your event theme.',
+                        features: [
+                            'Up to 6 wireless LED uplights',
+                            'Customizable colors to match your theme',
+                            'Remote-controlled brightness and effects',
+                            'Professional placement and setup',
+                            'Creates stunning ambiance',
+                            'Perfect for weddings, galas, and upscale events'
+                        ]
+                    },
+                    foampit: {
+                        icon: 'fa-cloud',
+                        title: 'Foam Pit Rental',
+                        price: '$500 per 4-hour event',
+                        additional: '$100 per additional hour',
+                        description: 'Ultimate party experience! Our foam machine creates an unforgettable dance floor.',
+                        features: [
+                            'Professional-grade foam machine',
+                            'Safe, hypoallergenic foam solution',
+                            'Creates 2-4 feet of foam coverage',
+                            'Attendant included for operation',
+                            'Indoor or outdoor use',
+                            'Perfect for school dances, parties, and summer events'
+                        ]
+                    },
+                    photography: {
+                        icon: 'fa-camera',
+                        title: 'Wedding Photography',
+                        price: 'Custom packages available',
+                        additional: 'Info provided upon request',
+                        description: 'Professional wedding photography to capture every precious moment of your special day.',
+                        features: [
+                            'Experienced wedding photographer',
+                            'Full-day coverage options',
+                            'High-resolution digital images',
+                            'Online gallery delivery',
+                            'Custom photo packages',
+                            'Contact us for detailed pricing and availability'
+                        ]
+                    }
+                };
+                
+                function showServiceModal(service) {
+                    const modal = document.getElementById('serviceModal');
+                    const content = document.getElementById('serviceModalContent');
+                    const details = serviceDetails[service];
+                    
+                    let html = \`
+                        <div class="text-center mb-6">
+                            <i class="fas \${details.icon} text-6xl" style="color: var(--primary-red);"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-center mb-4" style="color: var(--chrome-silver);">\${details.title}</h2>
+                        <div class="text-center mb-6">
+                            <p class="text-3xl font-bold" style="color: var(--primary-red);">\${details.price}</p>
+                            <p class="text-sm text-gray-400 mt-2">\${details.additional}</p>
+                        </div>
+                        <p class="text-center text-gray-300 mb-6">\${details.description}</p>
+                        <div class="text-left">
+                            <h3 class="text-xl font-bold mb-3" style="color: var(--chrome-silver);">Features:</h3>
+                            <ul class="space-y-2">
+                    \`;
+                    
+                    details.features.forEach(feature => {
+                        html += \`<li class="text-gray-300"><i class="fas fa-check mr-2" style="color: var(--primary-red);"></i>\${feature}</li>\`;
+                    });
+                    
+                    html += \`
+                            </ul>
+                        </div>
+                    \`;
+                    
+                    content.innerHTML = html;
+                    modal.style.display = 'flex';
+                }
+                
+                function closeServiceModal() {
+                    document.getElementById('serviceModal').style.display = 'none';
+                }
+                </script>
                 
                 <!-- Auth Buttons -->
                 <div class="mt-12 text-center space-x-4">
