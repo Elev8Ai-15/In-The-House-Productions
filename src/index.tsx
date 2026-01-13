@@ -2091,16 +2091,10 @@ app.get('/', (c) => {
                             <h4 class="text-sm font-bold text-chrome-silver">Garden Gate</h4>
                         </div>
 
-                        <!-- Almost Heaven -->
+                        <!-- Still Creek -->
                         <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
-                            <div class="text-4xl mb-2">☁️</div>
-                            <h4 class="text-sm font-bold text-chrome-silver">Almost Heaven</h4>
-                        </div>
-
-                        <!-- Circle C Farms -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
-                            <div class="text-4xl mb-2">⭕</div>
-                            <h4 class="text-sm font-bold text-chrome-silver">Circle C Farms</h4>
+                            <div class="text-4xl mb-2">🌊</div>
+                            <h4 class="text-sm font-bold text-chrome-silver">Still Creek</h4>
                         </div>
 
                         <!-- Barn Yard -->
