@@ -1863,7 +1863,28 @@ app.get('/', (c) => {
             
             <!-- Service Cards -->
             <main class="responsive-container section-spacing">
-                <div class="service-grid" style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 0 1rem;">
+                <style>
+                    .service-cards-container {
+                        max-width: 1000px;
+                        margin: 0 auto;
+                        padding: 0 2rem;
+                    }
+                    .service-cards-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 450px));
+                        gap: 2rem;
+                        justify-content: center;
+                    }
+                    @media (max-width: 768px) {
+                        .service-cards-grid {
+                            grid-template-columns: 1fr;
+                            max-width: 450px;
+                            margin: 0 auto;
+                        }
+                    }
+                </style>
+                <div class="service-cards-container">
+                    <div class="service-cards-grid">
                     <!-- DJ Services Card -->
                     <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
                         <div class="service-card-icon">
@@ -1919,6 +1940,8 @@ app.get('/', (c) => {
                             SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
                         </button>
                     </div>
+                    </div>
+                </div>
                 </div>
                 
                 <!-- Add-On Services Section -->
@@ -2144,33 +2167,33 @@ app.get('/', (c) => {
                         We're proud to partner with these exceptional venues across the region. 
                         Professional service and unforgettable celebrations!
                     </p>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto px-4">
+                    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; max-width: 900px; margin: 0 auto; padding: 0 2rem; justify-content: center;">
                         <!-- DK Farms -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🚜</div>
                             <h4 class="text-sm font-bold text-chrome-silver">DK Farms</h4>
                         </div>
 
                         <!-- The Big Red Barn -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🏚️</div>
                             <h4 class="text-sm font-bold text-chrome-silver">The Big Red Barn</h4>
                         </div>
 
                         <!-- Garden Gate -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🌸</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Garden Gate</h4>
                         </div>
 
                         <!-- Still Creek -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🌊</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Still Creek</h4>
                         </div>
 
                         <!-- Barn Yard -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🐄</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Barn Yard</h4>
                         </div>
