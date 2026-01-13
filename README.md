@@ -4,13 +4,19 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://9930a63c.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
+- **Production (Latest)**: https://f9bf1bad.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Mode**: Development Mode (Mock Payments & Emails)
 - **Status**: Fully functional, complete booking flow working!
-- **Last Deploy**: January 13, 2026 - ✨ Add-On Services with Pricing
+- **Last Deploy**: January 13, 2026 - 🤝 Preferred Event Vendors
 
 ## 🎉 Latest Updates
+- **Jan 13, 2026**: 🤝 **Preferred Event Vendors Added!** - Showcase venue partnerships
+  - DK Farms, The Big Red Barn, Garden Gate
+  - Almost Heaven, Circle C Farms, Barn Yard
+  - Professional presentation with hover effects
+  - Responsive grid layout (2-3-6 columns)
+  - Builds trust and credibility with clients
 - **Jan 13, 2026**: ✨ **Add-On Services Live!** - Real pricing and interactive modals
   - Karaoke Setup: $100/4hr event ($50/hr additional)
   - Uplighting: $100/4hr event (up to 6 lights)
