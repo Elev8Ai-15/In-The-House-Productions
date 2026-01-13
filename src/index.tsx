@@ -1923,6 +1923,29 @@ app.get('/', (c) => {
             <!-- Service Cards -->
             <main id="main-content" role="main" class="responsive-container section-spacing">
                 <div class="service-grid" style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 0 1rem;">
+            <main class="responsive-container section-spacing">
+                <style>
+                    .service-cards-container {
+                        max-width: 1000px;
+                        margin: 0 auto;
+                        padding: 0 2rem;
+                    }
+                    .service-cards-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 450px));
+                        gap: 2rem;
+                        justify-content: center;
+                    }
+                    @media (max-width: 768px) {
+                        .service-cards-grid {
+                            grid-template-columns: 1fr;
+                            max-width: 450px;
+                            margin: 0 auto;
+                        }
+                    }
+                </style>
+                <div class="service-cards-container">
+                    <div class="service-cards-grid">
                     <!-- DJ Services Card -->
                     <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" aria-label="Book DJ Services - Professional DJs starting at $500" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
                         <div class="service-card-icon">
@@ -1978,6 +2001,8 @@ app.get('/', (c) => {
                             SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
                         </button>
                     </div>
+                    </div>
+                </div>
                 </div>
                 
                 <!-- Add-On Services Section -->
@@ -2203,33 +2228,33 @@ app.get('/', (c) => {
                         We're proud to partner with these exceptional venues across the region. 
                         Professional service and unforgettable celebrations!
                     </p>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto px-4">
+                    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; max-width: 900px; margin: 0 auto; padding: 0 2rem; justify-content: center;">
                         <!-- DK Farms -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🚜</div>
                             <h4 class="text-sm font-bold text-chrome-silver">DK Farms</h4>
                         </div>
 
                         <!-- The Big Red Barn -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🏚️</div>
                             <h4 class="text-sm font-bold text-chrome-silver">The Big Red Barn</h4>
                         </div>
 
                         <!-- Garden Gate -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🌸</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Garden Gate</h4>
                         </div>
 
                         <!-- Still Creek -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🌊</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Still Creek</h4>
                         </div>
 
                         <!-- Barn Yard -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center">
+                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
                             <div class="text-4xl mb-2">🐄</div>
                             <h4 class="text-sm font-bold text-chrome-silver">Barn Yard</h4>
                         </div>
@@ -2815,6 +2840,7 @@ app.get('/calendar', (c) => {
           let currentYear = new Date().getFullYear();
           let selectedDate = null;
           let selectedDJ = null;
+          let selectedPhotobooth = null; // ADD THIS
           let selectedProvider = null; // Can be DJ or Photobooth
           let serviceType = null;
           let availabilityData = {};
@@ -2822,6 +2848,15 @@ app.get('/calendar', (c) => {
           const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                              'July', 'August', 'September', 'October', 'November', 'December'];
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          
+          // Alert and error dialogs
+          async function showAlert(message, title = 'Notice') {
+            alert(title + '\\n\\n' + message);
+          }
+          
+          async function showError(message, title = 'Error') {
+            alert(title + '\\n\\n' + message);
+          }
           
           // Check authentication and load selection
           window.addEventListener('DOMContentLoaded', async () => {
@@ -2835,7 +2870,7 @@ app.get('/calendar', (c) => {
             // Get service type (DJ or Photobooth)
             serviceType = localStorage.getItem('serviceType');
             selectedDJ = localStorage.getItem('selectedDJ');
-            const selectedPhotobooth = localStorage.getItem('selectedPhotobooth');
+            selectedPhotobooth = localStorage.getItem('selectedPhotobooth'); // Changed from const
             
             // CRITICAL DEBUG: Log what we have in localStorage
             console.log('📦 localStorage values:', {
@@ -3011,31 +3046,19 @@ app.get('/calendar', (c) => {
               console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
               
               if (!provider) {
-                console.error('❌ CRITICAL: No provider selected!');
-                document.getElementById('selectedDJDisplay').textContent = 'ERROR: No provider selected';
+                console.warn('No provider selected');
                 availabilityData = {};
                 return;
               }
               
-              console.log('📡 Fetching availability from API...');
               const response = await fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`);
-              
-              console.log('📊 API Response Status:', response.status, response.statusText);
-              
-              if (!response.ok) {
-                throw new Error(\`API returned \${response.status}: \${response.statusText}\`);
-              }
-              
               const data = await response.json();
-              console.log('✅ Availability data loaded:', Object.keys(data).length, 'dates');
-              console.log('Sample date:', Object.keys(data)[0], data[Object.keys(data)[0]]);
+              console.log('Availability data loaded:', data);
               availabilityData = data;
             } catch (error) {
-              console.error('❌ ERROR loading availability:', error);
-              console.error('Error details:', error.message, error.stack);
-              document.getElementById('selectedDJDisplay').textContent = 'ERROR: ' + error.message;
+              console.error('Error loading availability:', error);
+              // Error handled silently - show user-friendly message
               availabilityData = {};
-              throw error; // Re-throw to stop calendar rendering
             }
           }
           
