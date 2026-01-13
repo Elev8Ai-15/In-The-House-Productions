@@ -1814,23 +1814,23 @@ app.get('/', (c) => {
                     
                     <!-- Photobooth Card -->
                     <div class="service-card no-select focusable" onclick="window.location.href='/photobooth'" role="button" tabindex="0" onkeypress="if(event.key==='Enter')window.location.href='/photobooth'">
-                        <div class="text-center mb-6">
-                            <i class="fas fa-camera-retro text-8xl" style="color: var(--primary-red);"></i>
+                        <div class="service-card-icon">
+                            <i class="fas fa-camera-retro" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
                         </div>
-                        <div class="text-center mb-4">
-                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" class="mx-auto" style="max-width: 400px; height: auto;">
+                        <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
+                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
                         </div>
-                        <p class="text-chrome-silver text-center mb-6 text-lg">
+                        <p class="service-card-subtitle breathing-room">
                             Fun memories with instant prints and shareable moments
                         </p>
-                        <ul class="text-chrome-silver mb-6 space-y-2">
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> 2 Professional Units</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Unlimited Prints</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Custom Backdrops</li>
-                            <li><i class="fas fa-check" style="color: var(--primary-red);"></i> Digital Gallery</li>
+                        <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 2 Professional Units</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Unlimited Prints</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Custom Backdrops</li>
+                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Digital Gallery</li>
                         </ul>
-                        <button class="btn-3d w-full rounded text-uppercase">
-                            SELECT SERVICE <i class="fas fa-arrow-right ml-2"></i>
+                        <button class="btn-3d btn-responsive">
+                            SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
                         </button>
                     </div>
                 </div>
