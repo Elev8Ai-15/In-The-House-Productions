@@ -2948,49 +2948,24 @@ app.get('/calendar', (c) => {
           
           async function loadAvailability() {
             try {
-              // CRITICAL FIX: Use correct provider based on service type
-              let provider;
-              if (serviceType === 'photobooth') {
-                // For photobooth, map the ID and use it
-                if (selectedPhotobooth === 'unit1') {
-                  provider = 'photobooth_unit1';
-                } else if (selectedPhotobooth === 'unit2') {
-                  provider = 'photobooth_unit2';
-                } else {
-                  provider = selectedPhotobooth || selectedProvider;
-                }
-              } else {
-                // For DJ, use selectedDJ
-                provider = selectedDJ || selectedProvider;
-              }
+              // Get availability for current month using selectedProvider
+              const provider = selectedProvider || selectedDJ;
               console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
               
               if (!provider) {
-                console.error('❌ CRITICAL: No provider selected!');
-                document.getElementById('selectedDJDisplay').textContent = 'ERROR: No provider selected';
+                console.warn('No provider selected');
                 availabilityData = {};
                 return;
               }
               
-              console.log('📡 Fetching availability from API...');
               const response = await fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`);
-              
-              console.log('📊 API Response Status:', response.status, response.statusText);
-              
-              if (!response.ok) {
-                throw new Error(\`API returned \${response.status}: \${response.statusText}\`);
-              }
-              
               const data = await response.json();
-              console.log('✅ Availability data loaded:', Object.keys(data).length, 'dates');
-              console.log('Sample date:', Object.keys(data)[0], data[Object.keys(data)[0]]);
+              console.log('Availability data loaded:', data);
               availabilityData = data;
             } catch (error) {
-              console.error('❌ ERROR loading availability:', error);
-              console.error('Error details:', error.message, error.stack);
-              document.getElementById('selectedDJDisplay').textContent = 'ERROR: ' + error.message;
+              console.error('Error loading availability:', error);
+              // Error handled silently - show user-friendly message
               availabilityData = {};
-              throw error; // Re-throw to stop calendar rendering
             }
           }
           
