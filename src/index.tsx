@@ -4020,6 +4020,8 @@ app.get('/event-details', (c) => {
               // Store booking ID
               localStorage.setItem('bookingId', result.bookingId);
               
+              console.log('💳 Creating checkout session...');
+              
               // Create Stripe checkout session
               const checkoutResponse = await fetch('/api/checkout/create-session', {
                 method: 'POST',
@@ -4037,13 +4039,25 @@ app.get('/event-details', (c) => {
                 })
               });
               
+              console.log('📥 Checkout response status:', checkoutResponse.status);
+              
               const checkoutData = await checkoutResponse.json();
               
+              console.log('📥 Checkout data:', checkoutData);
+              
               if (!checkoutResponse.ok) {
+                console.error('❌ Checkout failed:', checkoutData);
                 throw new Error(checkoutData.error || 'Checkout session creation failed');
               }
               
-              // Redirect to Stripe
+              // Log if in development mode
+              if (checkoutData.developmentMode) {
+                console.log('⚠️  DEVELOPMENT MODE: Using mock payment');
+                console.log('Mock URL:', checkoutData.url);
+              }
+              
+              // Redirect to Stripe or mock success page
+              console.log('🔄 Redirecting to:', checkoutData.url);
               window.location.href = checkoutData.url;
               
             } catch (error) {
