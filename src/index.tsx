@@ -3819,6 +3819,53 @@ app.get('/event-details', (c) => {
         </div>
         
         <script>
+          // Helper functions for alerts
+          function showAlert(message, title = 'Notice') {
+            return new Promise((resolve) => {
+              const modal = document.createElement('div');
+              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+              modal.innerHTML = \`
+                <div style="background: #141414; border: 2px solid #FFD700; border-radius: 15px; padding: 2rem; max-width: 500px; width: 90%; box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); animation: slideIn 0.3s ease-out;">
+                  <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <i class="fas fa-info-circle" style="font-size: 3rem; color: #FFD700;"></i>
+                  </div>
+                  <h2 style="color: #FFD700; text-align: center; font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">\${title}</h2>
+                  <p style="color: #C0C0C0; text-align: center; font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">\${message}</p>
+                  <div style="text-align: center;">
+                    <button onclick="this.closest('[style*=\\"position: fixed\\"]').remove(); window.alertResolve();" style="background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; padding: 0.75rem 2rem; border: none; border-radius: 50px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px;">
+                      OK
+                    </button>
+                  </div>
+                </div>
+              \`;
+              document.body.appendChild(modal);
+              window.alertResolve = resolve;
+            });
+          }
+          
+          function showError(message, title = 'Error') {
+            return new Promise((resolve) => {
+              const modal = document.createElement('div');
+              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+              modal.innerHTML = \`
+                <div style="background: #141414; border: 2px solid #E31E24; border-radius: 15px; padding: 2rem; max-width: 500px; width: 90%; box-shadow: 0 0 30px rgba(227, 30, 36, 0.5); animation: slideIn 0.3s ease-out;">
+                  <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #E31E24;"></i>
+                  </div>
+                  <h2 style="color: #E31E24; text-align: center; font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">\${title}</h2>
+                  <p style="color: #C0C0C0; text-align: center; font-size: 1rem; line-height: 1.6; margin-bottom: 1.5rem;">\${message}</p>
+                  <div style="text-align: center;">
+                    <button onclick="this.closest('[style*=\\"position: fixed\\"]').remove(); window.errorResolve();" style="background: linear-gradient(135deg, #E31E24, #FF0040); color: #fff; padding: 0.75rem 2rem; border: none; border-radius: 50px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px;">
+                      OK
+                    </button>
+                  </div>
+                </div>
+              \`;
+              document.body.appendChild(modal);
+              window.errorResolve = resolve;
+            });
+          }
+          
           // Load booking data from localStorage
           let bookingData = {};
           
