@@ -268,6 +268,405 @@ app.get('/api/auth/me', async (c) => {
   }
 })
 
+// ===== EMPLOYEE AUTHENTICATION & MANAGEMENT =====
+
+// Employee Login
+app.post('/api/employee/login', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { email, password } = body
+    
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400)
+    }
+    
+    const cleanEmail = email.toLowerCase().trim()
+    
+    // Find employee
+    const employee: any = await DB.prepare(`
+      SELECT id, full_name, email, phone, password_hash, provider_id, service_type, is_active
+      FROM employees
+      WHERE email = ? AND is_active = 1
+    `).bind(cleanEmail).first()
+    
+    if (!employee) {
+      return c.json({ error: 'Invalid email or password' }, 401)
+    }
+    
+    // Verify password
+    const isValid = await verifyPassword(password, employee.password_hash)
+    
+    if (!isValid) {
+      return c.json({ error: 'Invalid email or password' }, 401)
+    }
+    
+    // Create JWT token
+    const token = await createToken({
+      employeeId: employee.id,
+      email: employee.email,
+      providerId: employee.provider_id,
+      role: 'employee'
+    }, getJWTSecret(c.env))
+    
+    // Log employee login
+    const clientIp = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
+    await DB.prepare(`
+      INSERT INTO change_logs (employee_id, action_type, ip_address)
+      VALUES (?, 'login', ?)
+    `).bind(employee.id, clientIp).run()
+    
+    return c.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      employee: {
+        id: employee.id,
+        full_name: employee.full_name,
+        email: employee.email,
+        phone: employee.phone,
+        provider_id: employee.provider_id,
+        service_type: employee.service_type,
+        role: 'employee'
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Employee login error:', error)
+    return c.json({ error: 'Login failed', details: error.message }, 500)
+  }
+})
+
+// Employee Logout (log action)
+app.post('/api/employee/logout', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    // Log logout
+    const clientIp = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
+    await DB.prepare(`
+      INSERT INTO change_logs (employee_id, action_type, ip_address)
+      VALUES (?, 'logout', ?)
+    `).bind(payload.employeeId, clientIp).run()
+    
+    return c.json({ success: true, message: 'Logged out successfully' })
+    
+  } catch (error: any) {
+    return c.json({ error: 'Logout failed' }, 500)
+  }
+})
+
+// Get Employee Info
+app.get('/api/employee/me', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    // Get employee data
+    const employee: any = await DB.prepare(`
+      SELECT id, full_name, email, phone, provider_id, service_type, created_at
+      FROM employees
+      WHERE id = ? AND is_active = 1
+    `).bind(payload.employeeId).first()
+    
+    if (!employee) {
+      return c.json({ error: 'Employee not found' }, 404)
+    }
+    
+    return c.json({
+      success: true,
+      employee: {
+        id: employee.id,
+        full_name: employee.full_name,
+        email: employee.email,
+        phone: employee.phone,
+        provider_id: employee.provider_id,
+        service_type: employee.service_type,
+        role: 'employee'
+      }
+    })
+    
+  } catch (error: any) {
+    return c.json({ error: 'Invalid or expired token' }, 401)
+  }
+})
+
+// Get Employee's Blocked Dates
+app.get('/api/employee/blocked-dates', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId || !payload.providerId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    // Get blocked dates for this provider
+    const blockedDates = await DB.prepare(`
+      SELECT id, service_provider, block_date, reason, created_at
+      FROM availability_blocks
+      WHERE service_provider = ?
+      ORDER BY block_date DESC
+    `).bind(payload.providerId).all()
+    
+    return c.json({
+      success: true,
+      blocked_dates: blockedDates.results
+    })
+    
+  } catch (error: any) {
+    console.error('Get blocked dates error:', error)
+    return c.json({ error: 'Failed to fetch blocked dates' }, 500)
+  }
+})
+
+// Block a Date
+app.post('/api/employee/block-date', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId || !payload.providerId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    const body = await c.req.json()
+    const { date, reason } = body
+    
+    if (!date) {
+      return c.json({ error: 'Date is required' }, 400)
+    }
+    
+    // Check if date is already blocked
+    const existing = await DB.prepare(`
+      SELECT id FROM availability_blocks
+      WHERE service_provider = ? AND block_date = ?
+    `).bind(payload.providerId, date).first()
+    
+    if (existing) {
+      return c.json({ error: 'Date is already blocked' }, 400)
+    }
+    
+    // Block the date
+    const result = await DB.prepare(`
+      INSERT INTO availability_blocks (service_provider, block_date, reason, employee_id, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(payload.providerId, date, reason || 'Blocked by employee', payload.employeeId, payload.employeeId).run()
+    
+    // Log the change
+    const clientIp = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
+    await DB.prepare(`
+      INSERT INTO change_logs (employee_id, action_type, target_date, new_value, reason, ip_address)
+      VALUES (?, 'block_date', ?, 'blocked', ?, ?)
+    `).bind(payload.employeeId, date, reason || 'Blocked by employee', clientIp).run()
+    
+    return c.json({
+      success: true,
+      message: 'Date blocked successfully',
+      block_id: result.meta.last_row_id
+    })
+    
+  } catch (error: any) {
+    console.error('Block date error:', error)
+    return c.json({ error: 'Failed to block date', details: error.message }, 500)
+  }
+})
+
+// Unblock a Date
+app.delete('/api/employee/unblock-date/:blockId', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId || !payload.providerId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    const blockId = c.req.param('blockId')
+    
+    // Get block details before deleting (for logging)
+    const block: any = await DB.prepare(`
+      SELECT block_date, reason FROM availability_blocks
+      WHERE id = ? AND service_provider = ?
+    `).bind(blockId, payload.providerId).first()
+    
+    if (!block) {
+      return c.json({ error: 'Block not found or unauthorized' }, 404)
+    }
+    
+    // Delete the block
+    await DB.prepare(`
+      DELETE FROM availability_blocks
+      WHERE id = ? AND service_provider = ?
+    `).bind(blockId, payload.providerId).run()
+    
+    // Log the change
+    const clientIp = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
+    await DB.prepare(`
+      INSERT INTO change_logs (employee_id, action_type, target_date, old_value, reason, ip_address)
+      VALUES (?, 'unblock_date', ?, 'blocked', ?, ?)
+    `).bind(payload.employeeId, block.block_date, block.reason || 'Unblocked by employee', clientIp).run()
+    
+    return c.json({
+      success: true,
+      message: 'Date unblocked successfully'
+    })
+    
+  } catch (error: any) {
+    console.error('Unblock date error:', error)
+    return c.json({ error: 'Failed to unblock date' }, 500)
+  }
+})
+
+// Get Employee's Bookings (Read-only)
+app.get('/api/employee/bookings', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId || !payload.providerId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    // Get bookings for this provider
+    const bookings = await DB.prepare(`
+      SELECT 
+        b.id,
+        b.event_date,
+        b.event_start_time,
+        b.event_end_time,
+        b.status,
+        ed.event_name,
+        ed.event_type,
+        ed.street_address,
+        ed.city,
+        ed.state
+      FROM bookings b
+      LEFT JOIN event_details ed ON b.id = ed.booking_id
+      WHERE b.service_provider = ?
+      ORDER BY b.event_date ASC
+    `).bind(payload.providerId).all()
+    
+    return c.json({
+      success: true,
+      bookings: bookings.results
+    })
+    
+  } catch (error: any) {
+    console.error('Get bookings error:', error)
+    return c.json({ error: 'Failed to fetch bookings' }, 500)
+  }
+})
+
+// Get Employee's Change Log (Audit Trail)
+app.get('/api/employee/change-log', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'No token provided' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (!payload.employeeId) {
+      return c.json({ error: 'Invalid employee token' }, 401)
+    }
+    
+    const limit = parseInt(c.req.query('limit') || '50')
+    const offset = parseInt(c.req.query('offset') || '0')
+    
+    // Get change logs for this employee
+    const logs = await DB.prepare(`
+      SELECT 
+        id,
+        action_type,
+        target_date,
+        old_value,
+        new_value,
+        reason,
+        ip_address,
+        created_at
+      FROM change_logs
+      WHERE employee_id = ?
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(payload.employeeId, limit, offset).all()
+    
+    return c.json({
+      success: true,
+      logs: logs.results,
+      limit,
+      offset
+    })
+    
+  } catch (error: any) {
+    console.error('Get change log error:', error)
+    return c.json({ error: 'Failed to fetch change log' }, 500)
+  }
+})
+
 // Get DJ profiles
 app.get('/api/services/dj', (c) => {
   const djProfiles = {
@@ -5127,6 +5526,556 @@ app.get('/admin', (c) => {
     </script>
 </body>
 </html>
+  `)
+})
+
+// ===== EMPLOYEE PORTAL PAGES =====
+
+// Employee Login Page
+app.get('/employee/login', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Employee Login - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --deep-red: #8B0000;
+            --chrome-silver: #C0C0C0;
+          }
+          body {
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+          }
+          .form-group {
+            margin-bottom: 1.5rem;
+          }
+          .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+            color: var(--chrome-silver);
+          }
+          .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #1a1a1a;
+            border: 2px solid var(--chrome-silver);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+          }
+          .form-input:focus {
+            outline: none;
+            border-color: var(--primary-red);
+            box-shadow: 0 0 20px rgba(227, 30, 36, 0.5);
+          }
+          .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(180deg, #E31E24 0%, #8B0000 100%);
+            border: 2px solid var(--chrome-silver);
+            color: white;
+            font-weight: 900;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 5px 0 #660000, 0 8px 15px rgba(0, 0, 0, 0.5);
+          }
+          .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #660000, 0 10px 20px rgba(0, 0, 0, 0.6);
+          }
+          .btn-login:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #660000, 0 3px 8px rgba(0, 0, 0, 0.5);
+          }
+        </style>
+    </head>
+    <body class="p-4">
+        <div class="max-w-md mx-auto mt-12">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3d-chrome text-3d-large mb-2">EMPLOYEE PORTAL</h1>
+                <p class="text-3d-gold text-3d-small">In The House Productions</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div class="bg-gray-900 p-8 rounded-xl border-2 border-chrome-silver shadow-2xl">
+                <h2 class="text-2xl font-bold text-center mb-6 text-3d-gold">Login</h2>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="email">
+                            <i class="fas fa-envelope mr-2"></i>Email
+                        </label>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            class="form-input" 
+                            placeholder="your.email@inthehouseproductions.com"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="password">
+                            <i class="fas fa-lock mr-2"></i>Password
+                        </label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Enter your password"
+                            required
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn-login">
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        LOGIN
+                    </button>
+                </form>
+                
+                <div class="mt-6 text-center">
+                    <a href="/" class="text-chrome-silver hover:text-primary-red text-sm">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Back to Homepage
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault()
+                
+                const email = document.getElementById('email').value
+                const password = document.getElementById('password').value
+                
+                try {
+                    const response = await fetch('/api/employee/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    })
+                    
+                    const data = await response.json()
+                    
+                    if (data.success) {
+                        // Store token and employee data
+                        localStorage.setItem('employeeToken', data.token)
+                        localStorage.setItem('employeeData', JSON.stringify(data.employee))
+                        
+                        // Redirect to dashboard
+                        window.location.href = '/employee/dashboard'
+                    } else {
+                        alert('Login failed: ' + (data.error || 'Unknown error'))
+                    }
+                } catch (error) {
+                    console.error('Login error:', error)
+                    alert('Login failed. Please try again.')
+                }
+            })
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Employee Dashboard
+app.get('/employee/dashboard', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Employee Dashboard - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --deep-red: #8B0000;
+            --chrome-silver: #C0C0C0;
+          }
+          body {
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+          }
+          .stat-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border: 2px solid var(--chrome-silver);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 0 20px rgba(227, 30, 36, 0.3);
+          }
+          .section-card {
+            background: #1a1a1a;
+            border: 2px solid var(--chrome-silver);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+          }
+          .blocked-date-item {
+            background: #2a2a2a;
+            border: 1px solid var(--chrome-silver);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .blocked-date-item:hover {
+            border-color: var(--primary-red);
+            box-shadow: 0 0 15px rgba(227, 30, 36, 0.5);
+          }
+          .btn-danger {
+            background: linear-gradient(180deg, #E31E24 0%, #8B0000 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--chrome-silver);
+            cursor: pointer;
+            font-weight: 700;
+          }
+          .btn-danger:hover {
+            box-shadow: 0 0 15px rgba(227, 30, 36, 0.8);
+          }
+          .btn-primary {
+            background: linear-gradient(180deg, #FFD700 0%, #FFA500 100%);
+            color: #000;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: 2px solid white;
+            cursor: pointer;
+            font-weight: 900;
+            box-shadow: 0 5px 0 #CC8800, 0 8px 15px rgba(0, 0, 0, 0.5);
+          }
+          .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #CC8800, 0 10px 20px rgba(0, 0, 0, 0.6);
+          }
+          .btn-secondary {
+            background: #333;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--chrome-silver);
+            cursor: pointer;
+          }
+          .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0a0a0a;
+            border: 2px solid var(--chrome-silver);
+            border-radius: 6px;
+            color: #fff;
+            margin-bottom: 1rem;
+          }
+          .form-input:focus {
+            outline: none;
+            border-color: var(--primary-red);
+          }
+        </style>
+    </head>
+    <body class="p-4">
+        <!-- Header -->
+        <div class="max-w-7xl mx-auto">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h1 class="text-3d-chrome text-3d-large">EMPLOYEE DASHBOARD</h1>
+                    <p class="text-3d-gold text-xl" id="employeeName">Loading...</p>
+                </div>
+                <button onclick="logout()" class="btn-secondary">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </button>
+            </div>
+            
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="stat-card">
+                    <div class="text-chrome-silver text-sm mb-2">
+                        <i class="fas fa-calendar-alt mr-2"></i>Upcoming Bookings
+                    </div>
+                    <div class="text-3d-gold text-3xl font-bold" id="upcomingCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-chrome-silver text-sm mb-2">
+                        <i class="fas fa-ban mr-2"></i>Blocked Dates
+                    </div>
+                    <div class="text-3d-red text-3xl font-bold" id="blockedCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="text-chrome-silver text-sm mb-2">
+                        <i class="fas fa-history mr-2"></i>Recent Changes
+                    </div>
+                    <div class="text-3d-chrome text-3xl font-bold" id="changesCount">0</div>
+                </div>
+            </div>
+            
+            <!-- Block New Date Section -->
+            <div class="section-card">
+                <h2 class="text-2xl font-bold mb-4 text-3d-gold">
+                    <i class="fas fa-ban mr-2"></i>Block New Date
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="date" id="blockDate" class="form-input">
+                    <input type="text" id="blockReason" class="form-input" placeholder="Reason (optional)">
+                    <button onclick="blockDate()" class="btn-primary">
+                        <i class="fas fa-plus mr-2"></i>BLOCK DATE
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Blocked Dates List -->
+            <div class="section-card">
+                <h2 class="text-2xl font-bold mb-4 text-3d-chrome">
+                    <i class="fas fa-list mr-2"></i>Your Blocked Dates
+                </h2>
+                <div id="blockedDatesList">
+                    <p class="text-gray-400">Loading...</p>
+                </div>
+            </div>
+            
+            <!-- Upcoming Bookings -->
+            <div class="section-card">
+                <h2 class="text-2xl font-bold mb-4 text-3d-chrome">
+                    <i class="fas fa-calendar-check mr-2"></i>Upcoming Bookings
+                </h2>
+                <div id="bookingsList">
+                    <p class="text-gray-400">Loading...</p>
+                </div>
+            </div>
+            
+            <!-- Recent Changes Log -->
+            <div class="section-card">
+                <h2 class="text-2xl font-bold mb-4 text-3d-chrome">
+                    <i class="fas fa-history mr-2"></i>Your Recent Changes
+                </h2>
+                <div id="changeLogList">
+                    <p class="text-gray-400">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const token = localStorage.getItem('employeeToken')
+            const employeeData = JSON.parse(localStorage.getItem('employeeData') || '{}')
+            
+            if (!token) {
+                window.location.href = '/employee/login'
+            }
+            
+            // Set employee name
+            document.getElementById('employeeName').textContent = employeeData.full_name || 'Employee'
+            
+            async function fetchWithAuth(url, options = {}) {
+                return fetch(url, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        'Authorization': \`Bearer \${token}\`,
+                        'Content-Type': 'application/json'
+                    }
+                })
+            }
+            
+            async function loadDashboard() {
+                // Load blocked dates
+                const blockedRes = await fetchWithAuth('/api/employee/blocked-dates')
+                const blockedData = await blockedRes.json()
+                
+                if (blockedData.success) {
+                    document.getElementById('blockedCount').textContent = blockedData.blocked_dates.length
+                    renderBlockedDates(blockedData.blocked_dates)
+                }
+                
+                // Load bookings
+                const bookingsRes = await fetchWithAuth('/api/employee/bookings')
+                const bookingsData = await bookingsRes.json()
+                
+                if (bookingsData.success) {
+                    const upcoming = bookingsData.bookings.filter(b => 
+                        new Date(b.event_date) >= new Date()
+                    )
+                    document.getElementById('upcomingCount').textContent = upcoming.length
+                    renderBookings(upcoming)
+                }
+                
+                // Load change log
+                const logRes = await fetchWithAuth('/api/employee/change-log?limit=10')
+                const logData = await logRes.json()
+                
+                if (logData.success) {
+                    document.getElementById('changesCount').textContent = logData.logs.length
+                    renderChangeLog(logData.logs)
+                }
+            }
+            
+            function renderBlockedDates(dates) {
+                const container = document.getElementById('blockedDatesList')
+                
+                if (dates.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400">No blocked dates</p>'
+                    return
+                }
+                
+                container.innerHTML = dates.map(date => \`
+                    <div class="blocked-date-item">
+                        <div>
+                            <div class="font-bold text-primary-red">
+                                <i class="fas fa-calendar-times mr-2"></i>
+                                \${new Date(date.block_date).toLocaleDateString()}
+                            </div>
+                            <div class="text-sm text-gray-400">\${date.reason || 'No reason provided'}</div>
+                        </div>
+                        <button onclick="unblockDate(\${date.id})" class="btn-danger">
+                            <i class="fas fa-trash mr-1"></i>Unblock
+                        </button>
+                    </div>
+                \`).join('')
+            }
+            
+            function renderBookings(bookings) {
+                const container = document.getElementById('bookingsList')
+                
+                if (bookings.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400">No upcoming bookings</p>'
+                    return
+                }
+                
+                container.innerHTML = bookings.map(booking => \`
+                    <div class="blocked-date-item">
+                        <div>
+                            <div class="font-bold text-chrome-silver">
+                                <i class="fas fa-calendar mr-2"></i>
+                                \${new Date(booking.event_date).toLocaleDateString()} - \${booking.event_name || 'Event'}
+                            </div>
+                            <div class="text-sm text-gray-400">
+                                \${booking.event_type || 'Unknown'} | \${booking.city || ''}, \${booking.state || ''}
+                            </div>
+                            <div class="text-sm text-gray-400">
+                                Time: \${booking.event_start_time} - \${booking.event_end_time}
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300">
+                            \${booking.status.toUpperCase()}
+                        </span>
+                    </div>
+                \`).join('')
+            }
+            
+            function renderChangeLog(logs) {
+                const container = document.getElementById('changeLogList')
+                
+                if (logs.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400">No recent changes</p>'
+                    return
+                }
+                
+                container.innerHTML = logs.slice(0, 10).map(log => \`
+                    <div class="text-sm mb-2 pb-2 border-b border-gray-700">
+                        <div class="font-bold text-chrome-silver">
+                            <i class="fas fa-history mr-2"></i>
+                            \${log.action_type.replace('_', ' ').toUpperCase()}
+                        </div>
+                        <div class="text-gray-400">
+                            \${log.target_date ? new Date(log.target_date).toLocaleDateString() : ''} 
+                            \${log.reason || ''}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            \${new Date(log.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                \`).join('')
+            }
+            
+            async function blockDate() {
+                const date = document.getElementById('blockDate').value
+                const reason = document.getElementById('blockReason').value
+                
+                if (!date) {
+                    alert('Please select a date')
+                    return
+                }
+                
+                try {
+                    const response = await fetchWithAuth('/api/employee/block-date', {
+                        method: 'POST',
+                        body: JSON.stringify({ date, reason })
+                    })
+                    
+                    const data = await response.json()
+                    
+                    if (data.success) {
+                        alert('Date blocked successfully!')
+                        document.getElementById('blockDate').value = ''
+                        document.getElementById('blockReason').value = ''
+                        loadDashboard()
+                    } else {
+                        alert('Failed to block date: ' + (data.error || 'Unknown error'))
+                    }
+                } catch (error) {
+                    console.error('Block date error:', error)
+                    alert('Failed to block date')
+                }
+            }
+            
+            async function unblockDate(blockId) {
+                if (!confirm('Are you sure you want to unblock this date?')) {
+                    return
+                }
+                
+                try {
+                    const response = await fetchWithAuth(\`/api/employee/unblock-date/\${blockId}\`, {
+                        method: 'DELETE'
+                    })
+                    
+                    const data = await response.json()
+                    
+                    if (data.success) {
+                        alert('Date unblocked successfully!')
+                        loadDashboard()
+                    } else {
+                        alert('Failed to unblock date: ' + (data.error || 'Unknown error'))
+                    }
+                } catch (error) {
+                    console.error('Unblock date error:', error)
+                    alert('Failed to unblock date')
+                }
+            }
+            
+            async function logout() {
+                try {
+                    await fetchWithAuth('/api/employee/logout', { method: 'POST' })
+                } catch (error) {
+                    console.error('Logout error:', error)
+                }
+                
+                localStorage.removeItem('employeeToken')
+                localStorage.removeItem('employeeData')
+                window.location.href = '/employee/login'
+            }
+            
+            // Initialize dashboard
+            loadDashboard()
+        </script>
+    </body>
+    </html>
   `)
 })
 
