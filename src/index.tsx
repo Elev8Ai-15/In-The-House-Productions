@@ -198,11 +198,14 @@ app.post('/api/auth/login', async (c) => {
     }
     
     // Create JWT token
+    const JWT_SECRET = getJWTSecret(c.env)
+    console.log('🔑 Creating token with secret:', JWT_SECRET === 'dev-secret-key-change-in-production-2025' ? 'DEFAULT (dev)' : 'CUSTOM')
     const token = await createToken({
       userId: user.id,
       email: user.email,
       role: user.role
-    }, getJWTSecret(c.env))
+    }, JWT_SECRET)
+    console.log('✅ Token created, length:', token.length)
     
     return c.json({
       success: true,
@@ -1901,11 +1904,15 @@ app.post('/api/bookings/create', async (c) => {
     let payload
     try {
       console.log('🔐 Verifying token...')
+      console.log('JWT_SECRET being used:', JWT_SECRET === 'dev-secret-key-change-in-production-2025' ? 'DEFAULT (dev)' : 'CUSTOM')
+      console.log('Token length:', token.length)
+      console.log('Token preview:', token.substring(0, 50) + '...')
       payload = await verifyToken(token, JWT_SECRET)
       console.log('✅ Token verified successfully:', { userId: payload.userId, email: payload.email, exp: payload.exp, now: Math.floor(Date.now() / 1000) })
-    } catch (tokenError) {
-      console.error('❌ Token verification failed:', tokenError)
-      console.error('Token preview:', token.substring(0, 50) + '...')
+    } catch (tokenError: any) {
+      console.error('❌ Token verification failed:', tokenError.message || tokenError)
+      console.error('Token was:', token.substring(0, 100) + '...')
+      console.error('JWT_SECRET:', JWT_SECRET === 'dev-secret-key-change-in-production-2025' ? 'Using DEFAULT dev secret' : 'Using custom secret')
       return c.json({ error: 'Invalid or expired token. Please log in again.' }, 401)
     }
     
@@ -4003,6 +4010,11 @@ app.get('/event-details', (c) => {
               if (!startTime || !endTime) {
                 throw new Error('Start time and end time are required');
               }
+              
+              // Log auth token info
+              console.log('🔑 Auth token present:', !!authToken);
+              console.log('🔑 Token length:', authToken ? authToken.length : 0);
+              console.log('🔑 Token preview:', authToken ? authToken.substring(0, 50) + '...' : 'NO TOKEN');
               
               // Create booking
               const response = await fetch('/api/bookings/create', {
