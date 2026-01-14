@@ -1399,8 +1399,30 @@ app.delete('/api/cart/remove/:itemId', async (c) => {
 // Create Stripe checkout session
 app.post('/api/checkout/create-session', async (c) => {
   try {
+    // Verify authentication
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ Checkout: No auth token provided')
+      return c.json({ error: 'Unauthorized - Please log in' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const JWT_SECRET = getJWTSecret(c.env)
+    
+    let payload
+    try {
+      console.log('🔐 Checkout: Verifying token...')
+      payload = await verifyToken(token, JWT_SECRET)
+      console.log('✅ Checkout: Token verified for user:', payload.userId)
+    } catch (tokenError) {
+      console.error('❌ Checkout: Token verification failed:', tokenError)
+      return c.json({ error: 'Invalid or expired session. Please log in again.' }, 401)
+    }
+    
     const { items, bookingId } = await c.req.json()
     const { DB } = c.env
+    
+    console.log('💳 Checkout session requested by user:', payload.userId, 'for booking:', bookingId)
     
     // Validate items
     if (!items || items.length === 0) {
@@ -1878,9 +1900,12 @@ app.post('/api/bookings/create', async (c) => {
     
     let payload
     try {
+      console.log('🔐 Verifying token...')
       payload = await verifyToken(token, JWT_SECRET)
+      console.log('✅ Token verified successfully:', { userId: payload.userId, email: payload.email, exp: payload.exp, now: Math.floor(Date.now() / 1000) })
     } catch (tokenError) {
-      console.error('Token verification failed:', tokenError)
+      console.error('❌ Token verification failed:', tokenError)
+      console.error('Token preview:', token.substring(0, 50) + '...')
       return c.json({ error: 'Invalid or expired token. Please log in again.' }, 401)
     }
     
