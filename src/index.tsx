@@ -1655,8 +1655,10 @@ app.post('/api/create-payment-intent', async (c) => {
       // Create booking in pending state
       let newBookingId = bookingId
       if (!bookingId && eventDetails) {
-        const startTime = eventDetails.startTime || '18:00:00'
-        const endTime = eventDetails.endTime || '23:00:00'
+        // Get start/end times from eventDetails or use defaults
+        const startTime = eventDetails.startTime || items[0].startTime || '18:00:00'
+        const endTime = eventDetails.endTime || items[0].endTime || '23:00:00'
+        const eventDate = eventDetails.eventDate || eventDetails.date || items[0].eventDate
         
         const bookingResult = await DB.prepare(`
           INSERT INTO bookings (
@@ -1668,7 +1670,7 @@ app.post('/api/create-payment-intent', async (c) => {
           payload.userId,
           items[0].serviceType || 'dj',
           items[0].serviceId,
-          eventDetails.eventDate || items[0].eventDate,
+          eventDate,
           startTime,
           endTime,
           totalAmount / 100,
@@ -1699,8 +1701,9 @@ app.post('/api/create-payment-intent', async (c) => {
     // Create booking first to get booking ID
     let newBookingId = bookingId
     if (!bookingId && eventDetails) {
-      const prodStartTime = eventDetails.startTime || '18:00:00'
-      const prodEndTime = eventDetails.endTime || '23:00:00'
+      const prodStartTime = eventDetails.startTime || items[0].startTime || '18:00:00'
+      const prodEndTime = eventDetails.endTime || items[0].endTime || '23:00:00'
+      const prodEventDate = eventDetails.eventDate || eventDetails.date || items[0].eventDate
       
       const bookingResult = await DB.prepare(`
         INSERT INTO bookings (
@@ -1712,7 +1715,7 @@ app.post('/api/create-payment-intent', async (c) => {
         payload.userId,
         items[0].serviceType || 'dj',
         items[0].serviceId,
-        eventDetails.eventDate || items[0].eventDate,
+        prodEventDate,
         prodStartTime,
         prodEndTime,
         totalAmount / 100,
