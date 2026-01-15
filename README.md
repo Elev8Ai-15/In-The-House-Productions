@@ -4,15 +4,56 @@
 **In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
 
 ## 🌐 Live URLs
-- **Production (Latest)**: https://50ed69ba.webapp-2mf.pages.dev ✅ **100% OPERATIONAL** ✅ **PRICING CORRECTED**
+- **Production (Latest)**: https://ab02ce95.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
 - **Custom Domain**: www.inthehouseproductions.com ✅ **LIVE & ACTIVE**
-- **Mode**: Development Mode (Mock Payments & Emails)
-- **Status**: Fully functional, complete booking flow working!
+- **Mode**: Stripe Test Mode (Real Stripe Integration Active)
+- **Status**: Fully functional, complete booking and payment flow working!
 - **System Health**: 100/100 - All systems verified and calibrated
-- **Last Deploy**: January 13, 2026 - ✅ Add-on Pricing Corrected ($50/hr)
+- **Last Deploy**: January 15, 2026 - ✅ Complete Stripe Integration
+
+## 💳 Stripe Integration Status
+- **Account**: Elev8ai.org (acct_1SfiL9FSpkhICUyS)
+- **Mode**: Test Mode (`sk_test_...`)
+- **Products**: 12 products configured
+- **Charges Enabled**: ✅ Yes
+- **Payouts Enabled**: ✅ Yes
+- **Payment Intents**: ✅ Working (real `pi_3SpnV3...` intents)
+
+### Stripe Products (12 Total)
+| Service | Base Price | Additional Hour |
+|---------|-----------|-----------------|
+| DJ Party Package | $500 (4hr) | +$100/hr |
+| DJ Wedding Package | $850 (5hr) | +$100/hr |
+| DJ Additional Hour | $100 | - |
+| Photobooth Strips | $500 (4hr) | +$100/hr |
+| Photobooth 4x6 | $550 (4hr) | +$100/hr |
+| Photobooth Additional Hour | $100 | - |
+| Karaoke Add-on | $100 (4hr) | +$50/hr |
+| Karaoke Additional Hour | $50 | - |
+| Uplighting Add-on | $100 (4hr) | +$50/hr |
+| Uplighting Additional Hour | $50 | - |
+| Foam Pit Rental | $500 (4hr) | +$100/hr |
+| Foam Pit Additional Hour | $100 | - |
 
 ## 🎉 Latest Updates
+- **Jan 15, 2026**: 💳 **Complete Stripe Integration!**
+  - Real Stripe Payment Intents working
+  - 12 products synced to Stripe account
+  - Checkout flow with Stripe Elements
+  - Webhook handling for payment confirmation
+  - Admin endpoint `/api/setup/stripe-products` for product management
+  - Status endpoint `/api/setup/stripe-status` for health checks
+- **Jan 15, 2026**: 🔧 **System Debug & Cleanup**
+  - Removed 15+ debug console.log statements
+  - Reduced bundle size (596KB → 594.81KB)
+  - Removed duplicate code sections
+  - Archived 74 documentation files to docs/archive/
+  - Removed backup files (.backup, .bak)
+- **Jan 15, 2026**: 🔐 **Admin Authentication Fixed**
+  - Reset admin password (bcrypt/PBKDF2 mismatch resolved)
+  - Added `/api/setup/reset-admin` endpoint
+  - Admin login now working on all environments
 - **Jan 13, 2026**: ✅ **Add-on Pricing CORRECTED!** - Accurate hourly rates
   - **Karaoke**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
   - **Uplighting**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
