@@ -205,10 +205,13 @@ app.post('/api/auth/login', async (c) => {
     
     console.log('[LOGIN] Token created for user:', user.id)
     
+    // Set HTTP-only cookie (works even if localStorage is blocked)
+    c.header('Set-Cookie', `authToken=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`)
+    
     return c.json({
       success: true,
       message: 'Login successful',
-      token,
+      token, // Still return for localStorage (if it works)
       user: {
         id: user.id,
         full_name: user.full_name,
@@ -266,6 +269,169 @@ app.get('/api/auth/me', async (c) => {
     
   } catch (error: any) {
     return c.json({ error: 'Invalid or expired token' }, 401)
+  }
+})
+
+// ===== ADMIN SETUP (One-time initialization) =====
+
+// Reset admin password - for fixing bcrypt/PBKDF2 mismatch
+app.post('/api/setup/reset-admin', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { email, new_password, setup_key } = body
+    
+    // Require setup key for security
+    const SETUP_KEY = 'InTheHouse2026!'
+    if (setup_key !== SETUP_KEY) {
+      return c.json({ error: 'Invalid setup key' }, 403)
+    }
+    
+    if (!email || !new_password) {
+      return c.json({ error: 'Email and new_password are required' }, 400)
+    }
+    
+    // Validate password
+    const passwordValidation = isValidPassword(new_password)
+    if (!passwordValidation.valid) {
+      return c.json({ error: passwordValidation.message }, 400)
+    }
+    
+    const cleanEmail = email.toLowerCase().trim()
+    
+    // Find admin user
+    const adminUser: any = await DB.prepare(`
+      SELECT id, full_name, email, role FROM users WHERE email = ? AND role = 'admin'
+    `).bind(cleanEmail).first()
+    
+    if (!adminUser) {
+      return c.json({ error: 'Admin user not found with this email' }, 404)
+    }
+    
+    // Hash new password using PBKDF2
+    const passwordHash = await hashPassword(new_password)
+    
+    // Update password
+    await DB.prepare(`
+      UPDATE users SET password_hash = ? WHERE id = ?
+    `).bind(passwordHash, adminUser.id).run()
+    
+    // Create JWT token
+    const token = await createToken({
+      userId: adminUser.id,
+      email: cleanEmail,
+      role: 'admin'
+    }, getJWTSecret(c.env))
+    
+    return c.json({
+      success: true,
+      message: 'Admin password reset successfully',
+      token,
+      user: {
+        id: adminUser.id,
+        full_name: adminUser.full_name,
+        email: adminUser.email,
+        role: 'admin'
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Admin password reset error:', error)
+    return c.json({ error: 'Password reset failed', details: error.message }, 500)
+  }
+})
+
+// Create admin user - only works if no admin exists
+app.post('/api/setup/admin', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    // Check if admin already exists
+    const existingAdmin: any = await DB.prepare(`
+      SELECT id FROM users WHERE role = 'admin'
+    `).first()
+    
+    if (existingAdmin) {
+      return c.json({ error: 'Admin user already exists. Use /login to sign in.' }, 409)
+    }
+    
+    const body = await c.req.json()
+    const { full_name, email, phone, password, setup_key } = body
+    
+    // Require setup key for security (can be changed or removed in production)
+    const SETUP_KEY = 'InTheHouse2026!'
+    if (setup_key !== SETUP_KEY) {
+      return c.json({ error: 'Invalid setup key' }, 403)
+    }
+    
+    // Validate required fields
+    if (!full_name || !email || !phone || !password) {
+      return c.json({ error: 'All fields are required' }, 400)
+    }
+    
+    // Validate email
+    if (!isValidEmail(email)) {
+      return c.json({ error: 'Invalid email format' }, 400)
+    }
+    
+    // Validate phone
+    if (!isValidPhone(phone)) {
+      return c.json({ error: 'Invalid phone format. Use format: +1-XXX-XXX-XXXX' }, 400)
+    }
+    
+    // Validate password
+    const passwordValidation = isValidPassword(password)
+    if (!passwordValidation.valid) {
+      return c.json({ error: passwordValidation.message }, 400)
+    }
+    
+    // Sanitize inputs
+    const cleanName = sanitizeInput(full_name)
+    const cleanEmail = email.toLowerCase().trim()
+    const cleanPhone = phone.trim()
+    
+    // Check if email already exists
+    const existingUser = await DB.prepare(`
+      SELECT id FROM users WHERE email = ?
+    `).bind(cleanEmail).first()
+    
+    if (existingUser) {
+      return c.json({ error: 'Email already registered' }, 409)
+    }
+    
+    // Hash password using PBKDF2 (same as regular registration)
+    const passwordHash = await hashPassword(password)
+    
+    // Insert admin user
+    const result = await DB.prepare(`
+      INSERT INTO users (full_name, email, phone, password_hash, role)
+      VALUES (?, ?, ?, ?, 'admin')
+    `).bind(cleanName, cleanEmail, cleanPhone, passwordHash).run()
+    
+    // Create JWT token
+    const token = await createToken({
+      userId: result.meta.last_row_id,
+      email: cleanEmail,
+      role: 'admin'
+    }, getJWTSecret(c.env))
+    
+    return c.json({
+      success: true,
+      message: 'Admin user created successfully',
+      token,
+      user: {
+        id: result.meta.last_row_id,
+        full_name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: 'admin'
+      }
+    }, 201)
+    
+  } catch (error: any) {
+    console.error('Admin setup error:', error)
+    return c.json({ error: 'Admin setup failed', details: error.message }, 500)
   }
 })
 
@@ -4718,13 +4884,17 @@ app.get('/register', (c) => {
 
 // Login Page
 app.get('/login', (c) => {
+  const version = Date.now() // Cache busting
   return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Login - In The House Productions</title>
-        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css?v=${version}" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -4768,16 +4938,50 @@ app.get('/login', (c) => {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Signing In...';
         try {
+          console.log('[LOGIN PAGE] Sending login request...');
           const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
           const data = await response.json();
+          console.log('[LOGIN PAGE] Response received:', { ok: response.ok, status: response.status, hasToken: !!data.token });
+          
           if (response.ok) {
+            console.log('[LOGIN PAGE] Login successful, saving token...');
+            console.log('[LOGIN PAGE] Token length:', data.token ? data.token.length : 0);
+            
+            // Save token
+            try {
+              localStorage.setItem('authToken', data.token);
+              localStorage.setItem('user', JSON.stringify(data.user));
+              console.log('[LOGIN PAGE] Token saved to localStorage');
+              
+              // Verify immediately
+              const savedToken = localStorage.getItem('authToken');
+              console.log('[LOGIN PAGE] Verification - Token exists:', !!savedToken, 'Length:', savedToken ? savedToken.length : 0);
+              
+              if (!savedToken) {
+                alert('ERROR: Token was not saved! Check console.');
+                throw new Error('Failed to save token to localStorage');
+              }
+              
+              console.log('[LOGIN PAGE] Token verified successfully!');
+            } catch (storageError) {
+              console.error('[LOGIN PAGE] localStorage error:', storageError);
+              alert('Storage Error: ' + storageError.message);
+              throw storageError;
+            }
+            
             messageEl.className = 'success-message p-3 rounded mb-4';
-            messageEl.textContent = '✓ ' + data.message + ' Redirecting...';
+            messageEl.textContent = '✓ ' + data.message + ' Token saved! Redirecting...';
             messageEl.classList.remove('hidden');
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            setTimeout(() => { if (data.user.role === 'admin') { window.location.href = '/admin'; } else { window.location.href = '/dj-services'; } }, 2000);
+            
+            setTimeout(() => { 
+              if (data.user.role === 'admin') { 
+                window.location.href = '/admin'; 
+              } else { 
+                window.location.href = '/dj-services'; 
+              } 
+            }, 2000);
           } else {
+            console.error('[LOGIN PAGE] Login failed:', data.error);
             messageEl.className = 'error-message p-3 rounded mb-4';
             messageEl.textContent = '✗ ' + (data.error || 'Login failed');
             messageEl.classList.remove('hidden');
@@ -4785,6 +4989,7 @@ app.get('/login', (c) => {
             submitBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>SIGN IN';
           }
         } catch (error) {
+          console.error('[LOGIN PAGE] Network error:', error);
           messageEl.className = 'error-message p-3 rounded mb-4';
           messageEl.textContent = '✗ Network error. Please try again.';
           messageEl.classList.remove('hidden');
