@@ -435,6 +435,303 @@ app.post('/api/setup/admin', async (c) => {
   }
 })
 
+// ===== STRIPE SETUP (Create all products in Stripe) =====
+
+// Service catalog for Stripe products
+const stripeServiceCatalog = {
+  dj_party: {
+    name: 'DJ Service - Party Package',
+    description: 'Professional DJ services for parties and events. Includes up to 4 hours of entertainment, professional sound equipment, and extensive music library.',
+    category: 'dj',
+    basePrice: 50000, // $500.00 in cents
+    baseHours: 4,
+    hourlyRate: 10000,
+    metadata: { service_type: 'dj', package_type: 'party', includes: 'Sound system, DJ equipment, music library' }
+  },
+  dj_wedding: {
+    name: 'DJ Service - Wedding Package',
+    description: 'Premium DJ services specifically designed for weddings. Includes up to 5 hours, MC services, ceremony music, cocktail hour, reception, and special event announcements.',
+    category: 'dj',
+    basePrice: 85000, // $850.00 in cents
+    baseHours: 5,
+    hourlyRate: 10000,
+    metadata: { service_type: 'dj', package_type: 'wedding', includes: 'MC services, ceremony music, cocktail hour, reception' }
+  },
+  dj_additional_hour: {
+    name: 'DJ Service - Additional Hour',
+    description: 'Add extra hour to your DJ booking.',
+    category: 'dj',
+    basePrice: 10000, // $100.00 in cents
+    isAddon: true,
+    metadata: { service_type: 'dj', addon_type: 'additional_hour' }
+  },
+  photobooth_strips: {
+    name: 'Photobooth - Unlimited Photo Strips',
+    description: 'Professional photobooth service with unlimited 2x6 photo strip prints. Includes 4 hours, on-site attendant, props, custom backdrop, and digital gallery.',
+    category: 'photobooth',
+    basePrice: 50000, // $500.00 in cents
+    baseHours: 4,
+    hourlyRate: 10000,
+    metadata: { service_type: 'photobooth', print_type: 'strips', includes: 'Unlimited prints, props, backdrop, digital gallery' }
+  },
+  photobooth_4x6: {
+    name: 'Photobooth - 4x6 Print Package',
+    description: 'Professional photobooth service with 4x6 prints. Includes 4 hours, on-site attendant, props, custom backdrop, and digital gallery.',
+    category: 'photobooth',
+    basePrice: 55000, // $550.00 in cents
+    baseHours: 4,
+    hourlyRate: 10000,
+    metadata: { service_type: 'photobooth', print_type: '4x6', includes: '4x6 prints, props, backdrop, digital gallery' }
+  },
+  photobooth_additional_hour: {
+    name: 'Photobooth - Additional Hour',
+    description: 'Add extra hour to your Photobooth booking.',
+    category: 'photobooth',
+    basePrice: 10000, // $100.00 in cents
+    isAddon: true,
+    metadata: { service_type: 'photobooth', addon_type: 'additional_hour' }
+  },
+  karaoke: {
+    name: 'Karaoke Add-on',
+    description: 'Add karaoke to your DJ event! Includes karaoke system, song library with thousands of tracks, wireless microphones, and on-screen lyrics display.',
+    category: 'addon',
+    basePrice: 10000, // $100.00 for 4hr event
+    baseHours: 4,
+    hourlyRate: 5000,
+    metadata: { service_type: 'addon', addon_type: 'karaoke', includes: 'Karaoke system, microphones, song library' }
+  },
+  karaoke_additional_hour: {
+    name: 'Karaoke - Additional Hour',
+    description: 'Add extra hour to your Karaoke addon.',
+    category: 'addon',
+    basePrice: 5000, // $50.00 in cents
+    isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'karaoke_additional_hour' }
+  },
+  uplighting: {
+    name: 'Uplighting Add-on',
+    description: 'Professional LED uplighting to transform your venue. Includes up to 6 wireless LED uplights with customizable colors.',
+    category: 'addon',
+    basePrice: 10000, // $100.00 for 4hr event
+    baseHours: 4,
+    hourlyRate: 5000,
+    metadata: { service_type: 'addon', addon_type: 'uplighting', includes: '6 wireless LED uplights, color customization' }
+  },
+  uplighting_additional_hour: {
+    name: 'Uplighting - Additional Hour',
+    description: 'Add extra hour to your Uplighting addon.',
+    category: 'addon',
+    basePrice: 5000, // $50.00 in cents
+    isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'uplighting_additional_hour' }
+  },
+  foam_pit: {
+    name: 'Foam Pit Rental',
+    description: 'Turn your event into an unforgettable foam party! Includes professional foam machine, foam solution for 4 hours, setup, and cleanup.',
+    category: 'addon',
+    basePrice: 50000, // $500.00 for 4hr event
+    baseHours: 4,
+    hourlyRate: 10000,
+    metadata: { service_type: 'addon', addon_type: 'foam_pit', includes: 'Foam machine, foam solution, setup, cleanup' }
+  },
+  foam_pit_additional_hour: {
+    name: 'Foam Pit - Additional Hour',
+    description: 'Add extra hour to your Foam Pit rental.',
+    category: 'addon',
+    basePrice: 10000, // $100.00 in cents
+    isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'foam_pit_additional_hour' }
+  }
+}
+
+// Admin endpoint to setup all Stripe products
+app.post('/api/setup/stripe-products', async (c) => {
+  const { STRIPE_SECRET_KEY } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { setup_key } = body
+    
+    // Require setup key for security
+    const SETUP_KEY = 'InTheHouse2026!'
+    if (setup_key !== SETUP_KEY) {
+      return c.json({ error: 'Invalid setup key' }, 403)
+    }
+    
+    // Check if Stripe is configured
+    if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock') || STRIPE_SECRET_KEY.includes('Mock')) {
+      return c.json({ 
+        error: 'Stripe not configured',
+        message: 'STRIPE_SECRET_KEY is not set or is a mock key. Please configure your Stripe API key in Cloudflare Pages secrets.'
+      }, 400)
+    }
+    
+    // Initialize Stripe
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' })
+    
+    // Verify Stripe connection
+    let accountInfo
+    try {
+      accountInfo = await stripe.accounts.retrieve()
+    } catch (e: any) {
+      return c.json({ error: 'Failed to connect to Stripe', details: e.message }, 500)
+    }
+    
+    const results: Record<string, any> = {}
+    const errors: string[] = []
+    
+    // Get existing products to avoid duplicates
+    const existingProducts = await stripe.products.list({ limit: 100, active: true })
+    const existingByKey = new Map(
+      existingProducts.data
+        .filter(p => p.metadata.service_key)
+        .map(p => [p.metadata.service_key, p])
+    )
+    
+    for (const [serviceKey, service] of Object.entries(stripeServiceCatalog)) {
+      try {
+        let product = existingByKey.get(serviceKey)
+        
+        // Create product if not exists
+        if (!product) {
+          product = await stripe.products.create({
+            name: service.name,
+            description: service.description,
+            active: true,
+            metadata: {
+              service_key: serviceKey,
+              category: service.category,
+              ...service.metadata
+            }
+          })
+        }
+        
+        // Check existing prices
+        const existingPrices = await stripe.prices.list({ product: product.id, active: true, limit: 10 })
+        let basePrice = existingPrices.data.find(p => 
+          p.metadata.price_type === 'base' && p.unit_amount === service.basePrice
+        )
+        
+        // Create base price if not exists
+        if (!basePrice) {
+          basePrice = await stripe.prices.create({
+            product: product.id,
+            unit_amount: service.basePrice,
+            currency: 'usd',
+            metadata: {
+              price_type: 'base',
+              service_key: serviceKey,
+              base_hours: String(service.baseHours || 0)
+            }
+          })
+        }
+        
+        // Create hourly price if applicable
+        let hourlyPrice = null
+        if (service.hourlyRate) {
+          hourlyPrice = existingPrices.data.find(p => 
+            p.metadata.price_type === 'hourly' && p.unit_amount === service.hourlyRate
+          )
+          
+          if (!hourlyPrice) {
+            hourlyPrice = await stripe.prices.create({
+              product: product.id,
+              unit_amount: service.hourlyRate,
+              currency: 'usd',
+              metadata: {
+                price_type: 'hourly',
+                service_key: serviceKey
+              }
+            })
+          }
+        }
+        
+        results[serviceKey] = {
+          productId: product.id,
+          productName: service.name,
+          basePriceId: basePrice.id,
+          baseAmount: `$${(service.basePrice / 100).toFixed(2)}`,
+          hourlyPriceId: hourlyPrice?.id || null,
+          hourlyAmount: service.hourlyRate ? `$${(service.hourlyRate / 100).toFixed(2)}/hr` : null,
+          status: existingByKey.has(serviceKey) ? 'existing' : 'created'
+        }
+        
+      } catch (e: any) {
+        errors.push(`${serviceKey}: ${e.message}`)
+        results[serviceKey] = { error: e.message }
+      }
+    }
+    
+    const successCount = Object.values(results).filter((r: any) => !r.error).length
+    const errorCount = errors.length
+    
+    return c.json({
+      success: true,
+      message: `Stripe setup complete: ${successCount} products configured, ${errorCount} errors`,
+      account: {
+        id: accountInfo.id,
+        name: accountInfo.business_profile?.name || 'N/A',
+        chargesEnabled: accountInfo.charges_enabled
+      },
+      products: results,
+      errors: errors.length > 0 ? errors : undefined
+    })
+    
+  } catch (error: any) {
+    console.error('Stripe setup error:', error)
+    return c.json({ error: 'Stripe setup failed', details: error.message }, 500)
+  }
+})
+
+// Get Stripe products status
+app.get('/api/setup/stripe-status', async (c) => {
+  const { STRIPE_SECRET_KEY } = c.env
+  
+  if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock') || STRIPE_SECRET_KEY.includes('Mock')) {
+    return c.json({ 
+      configured: false,
+      mode: 'development',
+      message: 'Stripe is in mock/development mode. Real Stripe API key not configured.'
+    })
+  }
+  
+  try {
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' })
+    const account = await stripe.accounts.retrieve()
+    const products = await stripe.products.list({ limit: 100, active: true })
+    
+    const ithpProducts = products.data.filter(p => p.metadata.service_key)
+    
+    return c.json({
+      configured: true,
+      mode: STRIPE_SECRET_KEY.startsWith('sk_live_') ? 'live' : 'test',
+      account: {
+        id: account.id,
+        name: account.business_profile?.name || 'N/A',
+        email: account.email,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled
+      },
+      products: {
+        total: products.data.length,
+        ithpProducts: ithpProducts.length,
+        list: ithpProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          serviceKey: p.metadata.service_key,
+          active: p.active
+        }))
+      }
+    })
+  } catch (error: any) {
+    return c.json({ 
+      configured: true, 
+      error: error.message,
+      message: 'Stripe API key configured but connection failed'
+    }, 500)
+  }
+})
+
 // ===== EMPLOYEE AUTHENTICATION & MANAGEMENT =====
 
 // Employee Login
@@ -1654,11 +1951,11 @@ app.post('/api/create-payment-intent', async (c) => {
       
       // Create booking in pending state
       let newBookingId = bookingId
-      if (!bookingId && eventDetails) {
+      if (!bookingId && eventDetails && DB) {
         // Get start/end times from eventDetails or use defaults
-        const startTime = eventDetails.startTime || items[0].startTime || '18:00:00'
-        const endTime = eventDetails.endTime || items[0].endTime || '23:00:00'
-        const eventDate = eventDetails.eventDate || eventDetails.date || items[0].eventDate
+        const startTime = eventDetails.startTime || eventDetails.start_time || items[0]?.startTime || '18:00:00'
+        const endTime = eventDetails.endTime || eventDetails.end_time || items[0]?.endTime || '23:00:00'
+        const eventDate = eventDetails.date || eventDetails.eventDate || items[0]?.eventDate || items[0]?.date
         
         const bookingResult = await DB.prepare(`
           INSERT INTO bookings (
@@ -1700,10 +1997,10 @@ app.post('/api/create-payment-intent', async (c) => {
     
     // Create booking first to get booking ID
     let newBookingId = bookingId
-    if (!bookingId && eventDetails) {
-      const prodStartTime = eventDetails.startTime || items[0].startTime || '18:00:00'
-      const prodEndTime = eventDetails.endTime || items[0].endTime || '23:00:00'
-      const prodEventDate = eventDetails.eventDate || eventDetails.date || items[0].eventDate
+    if (!bookingId && eventDetails && DB) {
+      const prodStartTime = eventDetails.startTime || eventDetails.start_time || items[0]?.startTime || '18:00:00'
+      const prodEndTime = eventDetails.endTime || eventDetails.end_time || items[0]?.endTime || '23:00:00'
+      const prodEventDate = eventDetails.date || eventDetails.eventDate || items[0]?.eventDate || items[0]?.date
       
       const bookingResult = await DB.prepare(`
         INSERT INTO bookings (
@@ -3745,32 +4042,26 @@ app.get('/calendar', (c) => {
             selectedDJ = localStorage.getItem('selectedDJ');
             selectedPhotobooth = localStorage.getItem('selectedPhotobooth'); // Changed from const
             
-            // CRITICAL DEBUG: Log what we have in localStorage
-            console.log('📦 localStorage values:', {
-              serviceType,
-              selectedDJ,
-              selectedPhotobooth,
-              authToken: !!localStorage.getItem('authToken')
-            });
+
             
             // Set the provider based on service type
             if (serviceType === 'photobooth') {
               // Map unit1/unit2 to photobooth_unit1/photobooth_unit2 for API calls
               if (selectedPhotobooth === 'unit1') {
                 selectedProvider = 'photobooth_unit1';
-                console.log('✅ Mapped unit1 → photobooth_unit1');
+
               } else if (selectedPhotobooth === 'unit2') {
                 selectedProvider = 'photobooth_unit2';
-                console.log('✅ Mapped unit2 → photobooth_unit2');
+
               } else if (selectedPhotobooth) {
                 selectedProvider = selectedPhotobooth; // In case it's already the full ID
-                console.log('✅ Using existing photobooth ID:', selectedPhotobooth);
+
               } else {
                 console.error('❌ CRITICAL: selectedPhotobooth is null/undefined!');
               }
             } else {
               selectedProvider = selectedDJ;
-              console.log('✅ Using DJ provider:', selectedDJ);
+
             }
             
             // Check if ANY service is selected
@@ -3786,12 +4077,7 @@ app.get('/calendar', (c) => {
               return;
             }
             
-            console.log('✅ Calendar loaded successfully:', { 
-              serviceType, 
-              selectedProvider, 
-              selectedDJ, 
-              selectedPhotobooth 
-            });
+
             
             // Display selected service
             if (serviceType === 'photobooth') {
@@ -3814,9 +4100,8 @@ app.get('/calendar', (c) => {
             }
             
             // Load calendar
-            console.log('🗓️  Starting calendar render...');
+
             renderCalendar().then(() => {
-              console.log('✅ Calendar render complete!');
             }).catch((error) => {
               console.error('❌ Calendar render failed:', error);
               document.getElementById('selectedDJDisplay').textContent = 'ERROR: Calendar failed to load';
@@ -3918,7 +4203,7 @@ app.get('/calendar', (c) => {
               try {
                 // Get availability for current month using selectedProvider
                 const provider = selectedProvider || selectedDJ;
-                console.log('Loading availability for:', provider, currentYear, currentMonth + 1);
+
                 
                 if (!provider) {
                   console.warn('No provider selected');
@@ -3930,7 +4215,7 @@ app.get('/calendar', (c) => {
                 fetch(\`/api/availability/\${provider}/\${currentYear}/\${currentMonth + 1}\`)
                   .then(response => response.json())
                   .then(data => {
-                    console.log('Availability data loaded:', data);
+
                     availabilityData = data;
                     resolve();
                   })
@@ -4424,14 +4709,6 @@ app.get('/event-details', (c) => {
                 serviceProvider = photoboothMapping[serviceProvider] || serviceProvider;
               }
               
-              console.log('📤 Creating booking:', {
-                serviceType,
-                serviceProvider,
-                eventDate: bookingData.date,
-                startTime,
-                endTime
-              });
-              
               // Validate required fields before sending
               if (!serviceType) {
                 throw new Error('Service type is missing');
@@ -4445,8 +4722,6 @@ app.get('/event-details', (c) => {
               if (!startTime || !endTime) {
                 throw new Error('Start time and end time are required');
               }
-              
-              console.log('[FRONTEND] Creating booking...');
               
               // Create booking
               const response = await fetch('/api/bookings/create', {
@@ -4466,13 +4741,10 @@ app.get('/event-details', (c) => {
               });
               
               const result = await response.json();
-              console.log('[FRONTEND] Booking response status:', response.status);
               
               if (!response.ok) {
-                // CRITICAL: Only redirect to login for actual auth errors (401)
-                // Other errors should show the message without logging out
+                // Only redirect to login for actual auth errors (401)
                 if (response.status === 401) {
-                  console.error('🔒 Authentication failed:', result.error);
                   localStorage.removeItem('authToken');
                   localStorage.removeItem('user');
                   await showAlert('Your session has expired. Please log in again.', 'Session Expired');
@@ -4480,8 +4752,6 @@ app.get('/event-details', (c) => {
                   return;
                 }
                 
-                // For other errors (400, 409, 500, etc), show the error without logging out
-                console.error('❌ Booking creation failed:', result.error);
                 throw new Error(result.error || 'Booking failed');
               }
               
@@ -4491,9 +4761,8 @@ app.get('/event-details', (c) => {
                 ...bookingData,
                 bookingId: result.bookingId
               }));
-              console.log('[FRONTEND] Booking created, redirecting to checkout page...');
               
-              // Redirect to new checkout page with Stripe Elements
+              // Redirect to checkout page
               window.location.href = '/checkout';
               
             } catch (error) {
@@ -4710,10 +4979,6 @@ app.get('/checkout', (c) => {
             const bookingData = JSON.parse(localStorage.getItem('bookingData') || '{}');
             const bookingId = localStorage.getItem('bookingId');
             
-            console.log('[CHECKOUT] Auth token:', authToken ? 'Present' : 'Missing');
-            console.log('[CHECKOUT] Booking data:', bookingData);
-            console.log('[CHECKOUT] Booking ID:', bookingId);
-            
             // Redirect if not authenticated
             if (!authToken) {
                 alert('Please log in to continue with checkout');
@@ -4762,7 +5027,6 @@ app.get('/checkout', (c) => {
                     });
                     
                     const data = await response.json();
-                    console.log('[CHECKOUT] Payment Intent response:', data);
                     
                     if (!response.ok) {
                         throw new Error(data.error || 'Failed to create payment');
@@ -4858,8 +5122,6 @@ app.get('/checkout', (c) => {
                 try {
                     // Handle development mode mock payment
                     if (window.mockPaymentData) {
-                        console.log('[CHECKOUT] Processing mock payment...');
-                        
                         // Confirm mock payment
                         const confirmResponse = await fetch('/api/payment/confirm', {
                             method: 'POST',
@@ -5705,31 +5967,20 @@ app.get('/login', (c) => {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Signing In...';
         try {
-          console.log('[LOGIN PAGE] Sending login request...');
           const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
           const data = await response.json();
-          console.log('[LOGIN PAGE] Response received:', { ok: response.ok, status: response.status, hasToken: !!data.token });
           
           if (response.ok) {
-            console.log('[LOGIN PAGE] Login successful, saving token...');
-            console.log('[LOGIN PAGE] Token length:', data.token ? data.token.length : 0);
-            
             // Save token
             try {
               localStorage.setItem('authToken', data.token);
               localStorage.setItem('user', JSON.stringify(data.user));
-              console.log('[LOGIN PAGE] Token saved to localStorage');
               
-              // Verify immediately
+              // Verify token saved
               const savedToken = localStorage.getItem('authToken');
-              console.log('[LOGIN PAGE] Verification - Token exists:', !!savedToken, 'Length:', savedToken ? savedToken.length : 0);
-              
               if (!savedToken) {
-                alert('ERROR: Token was not saved! Check console.');
                 throw new Error('Failed to save token to localStorage');
               }
-              
-              console.log('[LOGIN PAGE] Token verified successfully!');
             } catch (storageError) {
               console.error('[LOGIN PAGE] localStorage error:', storageError);
               alert('Storage Error: ' + storageError.message);
@@ -6211,272 +6462,6 @@ app.get('/api/admin/providers', async (c) => {
   } catch (error) {
     console.error('Admin providers error:', error)
     return c.json({ success: false, error: error.message }, 500)
-  }
-})
-
-// ================================
-// STRIPE PRODUCT MANAGEMENT
-// ================================
-
-// Complete service catalog for Stripe
-const stripeServiceCatalog = {
-  // DJ Services
-  dj_party: {
-    name: 'DJ Service - Party Package',
-    description: 'Professional DJ services for parties. Up to 4 hours, sound equipment, extensive music library.',
-    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
-    metadata: { service_type: 'dj', package_type: 'party' }
-  },
-  dj_wedding: {
-    name: 'DJ Service - Wedding Package',
-    description: 'Premium DJ services for weddings. Up to 5 hours, MC services, ceremony and reception music.',
-    basePrice: 85000, baseHours: 5, hourlyRate: 10000,
-    metadata: { service_type: 'dj', package_type: 'wedding' }
-  },
-  dj_additional_hour: {
-    name: 'DJ Service - Additional Hour',
-    description: 'Add extra hour to your DJ booking.',
-    basePrice: 10000, isAddon: true,
-    metadata: { service_type: 'dj', addon_type: 'additional_hour' }
-  },
-  // Photobooth Services
-  photobooth_strips: {
-    name: 'Photobooth - Unlimited Photo Strips',
-    description: 'Professional photobooth with unlimited 2x6 prints. 4 hours, attendant, props, digital gallery.',
-    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
-    metadata: { service_type: 'photobooth', print_type: 'strips' }
-  },
-  photobooth_4x6: {
-    name: 'Photobooth - 4x6 Print Package',
-    description: 'Professional photobooth with 4x6 prints. 4 hours, attendant, props, digital gallery.',
-    basePrice: 55000, baseHours: 4, hourlyRate: 10000,
-    metadata: { service_type: 'photobooth', print_type: '4x6' }
-  },
-  photobooth_additional_hour: {
-    name: 'Photobooth - Additional Hour',
-    description: 'Add extra hour to your Photobooth booking.',
-    basePrice: 10000, isAddon: true,
-    metadata: { service_type: 'photobooth', addon_type: 'additional_hour' }
-  },
-  // Add-on Services
-  karaoke: {
-    name: 'Karaoke Add-on',
-    description: 'Add karaoke to your event! Karaoke system, wireless mics, thousands of songs.',
-    basePrice: 10000, baseHours: 4, hourlyRate: 5000,
-    metadata: { service_type: 'addon', addon_type: 'karaoke' }
-  },
-  karaoke_additional_hour: {
-    name: 'Karaoke - Additional Hour',
-    description: 'Add extra hour to Karaoke addon.',
-    basePrice: 5000, isAddon: true,
-    metadata: { service_type: 'addon', addon_type: 'karaoke_hour' }
-  },
-  uplighting: {
-    name: 'Uplighting Add-on',
-    description: 'Professional LED uplighting. Up to 6 wireless lights, customizable colors.',
-    basePrice: 10000, baseHours: 4, hourlyRate: 5000,
-    metadata: { service_type: 'addon', addon_type: 'uplighting' }
-  },
-  uplighting_additional_hour: {
-    name: 'Uplighting - Additional Hour',
-    description: 'Add extra hour to Uplighting addon.',
-    basePrice: 5000, isAddon: true,
-    metadata: { service_type: 'addon', addon_type: 'uplighting_hour' }
-  },
-  foam_pit: {
-    name: 'Foam Pit Rental',
-    description: 'Turn your event into a foam party! Professional foam machine, solution, setup and cleanup.',
-    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
-    metadata: { service_type: 'addon', addon_type: 'foam_pit' }
-  },
-  foam_pit_additional_hour: {
-    name: 'Foam Pit - Additional Hour',
-    description: 'Add extra hour to Foam Pit rental.',
-    basePrice: 10000, isAddon: true,
-    metadata: { service_type: 'addon', addon_type: 'foam_pit_hour' }
-  }
-}
-
-// Admin API: Sync all products to Stripe
-app.post('/api/admin/stripe/sync-products', async (c) => {
-  try {
-    // Verify admin authentication
-    const authHeader = c.req.header('Authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-    
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token, getJWTSecret(c.env))
-    
-    if (payload.role !== 'admin') {
-      return c.json({ error: 'Admin access required' }, 403)
-    }
-    
-    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
-    if (!STRIPE_SECRET_KEY) {
-      return c.json({ error: 'Stripe not configured' }, 500)
-    }
-    
-    const stripe = new Stripe(STRIPE_SECRET_KEY, {
-      apiVersion: '2024-11-20.acacia' as any
-    })
-    
-    const results: any = {}
-    
-    // Get existing products
-    const existingProducts = await stripe.products.list({ limit: 100, active: true })
-    const existingMap = new Map(
-      existingProducts.data.map(p => [p.metadata.service_key, p])
-    )
-    
-    for (const [serviceKey, service] of Object.entries(stripeServiceCatalog)) {
-      try {
-        let product = existingMap.get(serviceKey)
-        
-        // Create product if not exists
-        if (!product) {
-          product = await stripe.products.create({
-            name: service.name,
-            description: service.description,
-            active: true,
-            metadata: {
-              service_key: serviceKey,
-              ...service.metadata
-            }
-          })
-        }
-        
-        // Check for existing base price
-        const existingPrices = await stripe.prices.list({
-          product: product.id,
-          active: true,
-          limit: 10
-        })
-        
-        let basePrice = existingPrices.data.find(p => 
-          p.metadata.price_type === 'base' && p.unit_amount === service.basePrice
-        )
-        
-        // Create base price if not exists
-        if (!basePrice) {
-          basePrice = await stripe.prices.create({
-            product: product.id,
-            unit_amount: service.basePrice,
-            currency: 'usd',
-            metadata: {
-              price_type: 'base',
-              service_key: serviceKey,
-              base_hours: service.baseHours?.toString() || '0'
-            }
-          })
-        }
-        
-        // Create hourly price if applicable
-        let hourlyPrice = null
-        if (service.hourlyRate) {
-          hourlyPrice = existingPrices.data.find(p => 
-            p.metadata.price_type === 'hourly'
-          )
-          
-          if (!hourlyPrice) {
-            hourlyPrice = await stripe.prices.create({
-              product: product.id,
-              unit_amount: service.hourlyRate,
-              currency: 'usd',
-              metadata: {
-                price_type: 'hourly',
-                service_key: serviceKey
-              }
-            })
-          }
-        }
-        
-        results[serviceKey] = {
-          success: true,
-          productId: product.id,
-          basePriceId: basePrice.id,
-          hourlyPriceId: hourlyPrice?.id || null,
-          name: service.name,
-          baseAmount: `$${(service.basePrice / 100).toFixed(2)}`,
-          hourlyAmount: service.hourlyRate ? `$${(service.hourlyRate / 100).toFixed(2)}/hr` : null
-        }
-      } catch (error: any) {
-        results[serviceKey] = {
-          success: false,
-          error: error.message
-        }
-      }
-    }
-    
-    const successful = Object.values(results).filter((r: any) => r.success).length
-    const failed = Object.values(results).filter((r: any) => !r.success).length
-    
-    return c.json({
-      success: true,
-      message: `Synced ${successful} products to Stripe${failed > 0 ? `, ${failed} failed` : ''}`,
-      results
-    })
-    
-  } catch (error: any) {
-    console.error('Stripe sync error:', error)
-    return c.json({ error: error.message || 'Stripe sync failed' }, 500)
-  }
-})
-
-// Admin API: List Stripe products
-app.get('/api/admin/stripe/products', async (c) => {
-  try {
-    // Verify admin authentication
-    const authHeader = c.req.header('Authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-    
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token, getJWTSecret(c.env))
-    
-    if (payload.role !== 'admin') {
-      return c.json({ error: 'Admin access required' }, 403)
-    }
-    
-    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
-    if (!STRIPE_SECRET_KEY) {
-      return c.json({ error: 'Stripe not configured' }, 500)
-    }
-    
-    const stripe = new Stripe(STRIPE_SECRET_KEY, {
-      apiVersion: '2024-11-20.acacia' as any
-    })
-    
-    const products = await stripe.products.list({ limit: 100, active: true })
-    const prices = await stripe.prices.list({ limit: 100, active: true })
-    
-    const productData = products.data.map(p => {
-      const productPrices = prices.data.filter(pr => pr.product === p.id)
-      return {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        active: p.active,
-        metadata: p.metadata,
-        prices: productPrices.map(pr => ({
-          id: pr.id,
-          amount: `$${((pr.unit_amount || 0) / 100).toFixed(2)}`,
-          type: pr.metadata.price_type || 'base'
-        }))
-      }
-    })
-    
-    return c.json({
-      success: true,
-      count: products.data.length,
-      products: productData
-    })
-    
-  } catch (error: any) {
-    console.error('Stripe products error:', error)
-    return c.json({ error: error.message || 'Failed to fetch products' }, 500)
   }
 })
 
