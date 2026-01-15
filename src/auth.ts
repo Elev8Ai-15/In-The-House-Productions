@@ -132,6 +132,14 @@ export async function createToken(payload: any, secret: string, expiresIn: numbe
   return `${data}.${encodedSignature}`
 }
 
+// Helper to add proper base64 padding
+function addBase64Padding(str: string): string {
+  const pad = str.length % 4
+  if (pad === 2) return str + '=='
+  if (pad === 3) return str + '='
+  return str
+}
+
 // Verify JWT token
 export async function verifyToken(token: string, secret: string): Promise<any> {
   try {
@@ -153,8 +161,12 @@ export async function verifyToken(token: string, secret: string): Promise<any> {
       ['verify']
     )
     
+    // Properly decode base64url to base64 and add correct padding
+    const base64Signature = addBase64Padding(
+      encodedSignature.replace(/-/g, '+').replace(/_/g, '/')
+    )
     const signature = Uint8Array.from(
-      atob(encodedSignature.replace(/-/g, '+').replace(/_/g, '/') + '=='),
+      atob(base64Signature),
       c => c.charCodeAt(0)
     )
     
@@ -169,10 +181,11 @@ export async function verifyToken(token: string, secret: string): Promise<any> {
       throw new Error('Invalid signature')
     }
     
-    // Decode payload
-    const payload = JSON.parse(
-      atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/') + '==')
+    // Decode payload with proper padding
+    const base64Payload = addBase64Padding(
+      encodedPayload.replace(/-/g, '+').replace(/_/g, '/')
     )
+    const payload = JSON.parse(atob(base64Payload))
     
     // Check expiration
     const now = Math.floor(Date.now() / 1000)

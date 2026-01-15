@@ -15,7 +15,9 @@
     "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local && npm run db:seed",
     "db:console:local": "wrangler d1 execute webapp-production --local",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
-    "test": "curl http://localhost:3000"
+    "test": "curl http://localhost:3000",
+    "stripe:setup": "node scripts/stripe-setup.js",
+    "stripe:list": "node -e \"const Stripe = require('stripe'); const s = new Stripe(process.env.STRIPE_SECRET_KEY); s.products.list({active: true}).then(p => console.log(JSON.stringify(p.data, null, 2)))\""
   },
   "dependencies": {
     "hono": "^4.10.6",

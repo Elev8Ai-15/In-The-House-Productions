@@ -1490,6 +1490,21 @@ const servicePricing = {
     basePrice: 100,        // $100 per 4hr event
     baseHours: 4,
     hourlyRate: 50         // $50 per additional hour
+  },
+  foam_pit: {
+    name: 'Foam Pit Rental',
+    basePrice: 500,        // $500 per 4hr event
+    baseHours: 4,
+    hourlyRate: 100        // $100 per additional hour
+  },
+  
+  // Wedding-specific DJ pricing
+  dj_wedding: {
+    name: 'DJ Wedding Package',
+    basePrice: 850,        // Weddings up to 5 hrs
+    baseHours: 5,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 5
   }
 }
 
@@ -1561,6 +1576,278 @@ app.delete('/api/cart/remove/:itemId', async (c) => {
   } catch (error) {
     return c.json({ error: 'Failed to remove item' }, 500)
   }
+})
+
+// ===== STRIPE PAYMENT INTENTS API =====
+
+// Create Payment Intent - Server-side price calculation (SECURE)
+app.post('/api/create-payment-intent', async (c) => {
+  try {
+    // Verify authentication
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorized - Please log in' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const secret = getJWTSecret(c.env)
+    
+    let payload
+    try {
+      payload = await verifyToken(token, secret)
+    } catch (tokenError: any) {
+      return c.json({ error: 'Invalid or expired session. Please log in again.' }, 401)
+    }
+    
+    const { DB } = c.env
+    const body = await c.req.json()
+    const { items, bookingId, eventDetails } = body
+    
+    // Validate items
+    if (!items || items.length === 0) {
+      return c.json({ error: 'No items provided' }, 400)
+    }
+    
+    // Calculate total on server side (CRITICAL - never trust client-side prices)
+    let totalAmount = 0 // in cents
+    const lineItems: any[] = []
+    
+    for (const item of items) {
+      const service = servicePricing[item.serviceId as keyof typeof servicePricing]
+      if (!service) {
+        return c.json({ error: `Invalid service: ${item.serviceId}` }, 400)
+      }
+      
+      const hours = item.hours || service.baseHours || 4
+      const basePrice = service.basePrice
+      const hourlyRate = service.hourlyRate || 0
+      const baseHours = service.baseHours || 4
+      
+      // Calculate: base price + additional hours
+      let itemTotal = basePrice
+      if (hours > baseHours) {
+        itemTotal += (hours - baseHours) * hourlyRate
+      }
+      
+      // Convert to cents
+      const itemTotalCents = itemTotal * 100
+      totalAmount += itemTotalCents
+      
+      lineItems.push({
+        serviceId: item.serviceId,
+        serviceName: service.name,
+        hours: hours,
+        basePrice: basePrice,
+        hourlyRate: hourlyRate,
+        subtotal: itemTotal,
+        subtotalCents: itemTotalCents
+      })
+    }
+    
+    // Get Stripe API key
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    const isDevelopmentMode = !STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock') || STRIPE_SECRET_KEY.includes('Mock')
+    
+    // DEVELOPMENT MODE: Return mock client secret
+    if (isDevelopmentMode) {
+      console.log('⚠️  DEVELOPMENT MODE: Using mock payment intent')
+      
+      // Create booking in pending state
+      let newBookingId = bookingId
+      if (!bookingId && eventDetails) {
+        const startTime = eventDetails.startTime || '18:00:00'
+        const endTime = eventDetails.endTime || '23:00:00'
+        
+        const bookingResult = await DB.prepare(`
+          INSERT INTO bookings (
+            user_id, service_type, service_provider, event_date,
+            event_start_time, event_end_time,
+            total_price, payment_status, status, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+          payload.userId,
+          items[0].serviceType || 'dj',
+          items[0].serviceId,
+          eventDetails.eventDate || items[0].eventDate,
+          startTime,
+          endTime,
+          totalAmount / 100,
+          'pending',
+          'pending'
+        ).run()
+        newBookingId = bookingResult.meta.last_row_id
+      }
+      
+      const mockClientSecret = `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substring(7)}`
+      
+      return c.json({
+        clientSecret: mockClientSecret,
+        amount: totalAmount,
+        amountFormatted: `$${(totalAmount / 100).toFixed(2)}`,
+        lineItems: lineItems,
+        bookingId: newBookingId,
+        developmentMode: true,
+        message: '⚠️ Development mode - Use test card 4242424242424242'
+      })
+    }
+    
+    // PRODUCTION: Create real Stripe Payment Intent
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2024-11-20.acacia' as any
+    })
+    
+    // Create booking first to get booking ID
+    let newBookingId = bookingId
+    if (!bookingId && eventDetails) {
+      const prodStartTime = eventDetails.startTime || '18:00:00'
+      const prodEndTime = eventDetails.endTime || '23:00:00'
+      
+      const bookingResult = await DB.prepare(`
+        INSERT INTO bookings (
+          user_id, service_type, service_provider, event_date,
+          event_start_time, event_end_time,
+          total_price, payment_status, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        payload.userId,
+        items[0].serviceType || 'dj',
+        items[0].serviceId,
+        eventDetails.eventDate || items[0].eventDate,
+        prodStartTime,
+        prodEndTime,
+        totalAmount / 100,
+        'pending',
+        'pending'
+      ).run()
+      newBookingId = bookingResult.meta.last_row_id
+    }
+    
+    // Create Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalAmount,
+      currency: 'usd',
+      automatic_payment_methods: {
+        enabled: true,
+      },
+      metadata: {
+        bookingId: newBookingId?.toString() || '',
+        userId: payload.userId.toString(),
+        items: JSON.stringify(lineItems.map(item => ({
+          serviceId: item.serviceId,
+          hours: item.hours,
+          subtotal: item.subtotal
+        })))
+      },
+      description: `In The House Productions - ${lineItems.map(i => i.serviceName).join(', ')}`
+    })
+    
+    // Update booking with payment intent ID
+    if (newBookingId) {
+      await DB.prepare(`
+        UPDATE bookings 
+        SET stripe_payment_intent_id = ?, payment_status = 'pending'
+        WHERE id = ?
+      `).bind(paymentIntent.id, newBookingId).run()
+    }
+    
+    return c.json({
+      clientSecret: paymentIntent.client_secret,
+      amount: totalAmount,
+      amountFormatted: `$${(totalAmount / 100).toFixed(2)}`,
+      lineItems: lineItems,
+      bookingId: newBookingId,
+      paymentIntentId: paymentIntent.id
+    })
+    
+  } catch (error: any) {
+    console.error('Payment intent error:', error)
+    return c.json({ error: error.message || 'Failed to create payment' }, 500)
+  }
+})
+
+// Confirm Payment - Handle webhook from Stripe
+app.post('/api/payment/confirm', async (c) => {
+  try {
+    const { paymentIntentId, bookingId } = await c.req.json()
+    const { DB } = c.env
+    
+    // Update booking status
+    if (bookingId) {
+      await DB.prepare(`
+        UPDATE bookings 
+        SET payment_status = 'paid', status = 'confirmed', updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(bookingId).run()
+    }
+    
+    return c.json({ success: true, message: 'Payment confirmed' })
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500)
+  }
+})
+
+// Get service pricing - Public endpoint for displaying prices
+app.get('/api/services/pricing', (c) => {
+  // Format pricing for frontend display
+  const pricing = {
+    dj: {
+      party: {
+        name: 'DJ Party Package',
+        basePrice: 500,
+        baseHours: 4,
+        hourlyRate: 100,
+        description: 'Professional DJ for parties (up to 4 hours)'
+      },
+      wedding: {
+        name: 'DJ Wedding Package',
+        basePrice: 850,
+        baseHours: 5,
+        hourlyRate: 100,
+        description: 'Premium DJ + MC for weddings (up to 5 hours)'
+      }
+    },
+    photobooth: {
+      strips: {
+        name: 'Photobooth - Unlimited Strips',
+        basePrice: 500,
+        baseHours: 4,
+        hourlyRate: 100,
+        description: 'Unlimited 2x6 photo strips (4 hours)'
+      },
+      prints_4x6: {
+        name: 'Photobooth - 4x6 Prints',
+        basePrice: 550,
+        baseHours: 4,
+        hourlyRate: 100,
+        description: '4x6 prints package (4 hours)'
+      }
+    },
+    addons: {
+      karaoke: {
+        name: 'Karaoke Add-on',
+        basePrice: 100,
+        baseHours: 4,
+        hourlyRate: 50,
+        description: 'Karaoke system with song library'
+      },
+      uplighting: {
+        name: 'Uplighting Add-on',
+        basePrice: 100,
+        baseHours: 4,
+        hourlyRate: 50,
+        description: 'Up to 6 LED uplights'
+      },
+      foam_pit: {
+        name: 'Foam Pit Rental',
+        basePrice: 500,
+        baseHours: 4,
+        hourlyRate: 100,
+        description: 'Foam party machine & solution'
+      }
+    }
+  }
+  
+  return c.json(pricing)
 })
 
 // Create Stripe checkout session
@@ -4195,42 +4482,16 @@ app.get('/event-details', (c) => {
                 throw new Error(result.error || 'Booking failed');
               }
               
-              // Store booking ID
+              // Store booking ID and data for checkout page
               localStorage.setItem('bookingId', result.bookingId);
-              console.log('[FRONTEND] Booking created, proceeding to checkout...');
+              localStorage.setItem('bookingData', JSON.stringify({
+                ...bookingData,
+                bookingId: result.bookingId
+              }));
+              console.log('[FRONTEND] Booking created, redirecting to checkout page...');
               
-              // Create Stripe checkout session
-              const checkoutResponse = await fetch('/api/checkout/create-session', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': \`Bearer \${authToken}\`
-                },
-                body: JSON.stringify({
-                  bookingId: result.bookingId,
-                  items: [{
-                    serviceId: bookingData.dj || bookingData.serviceType,
-                    eventDate: bookingData.date,
-                    hours: calculateHours(startTime, endTime)
-                  }]
-                })
-              });
-              
-              const checkoutData = await checkoutResponse.json();
-              console.log('[FRONTEND] Checkout response status:', checkoutResponse.status);
-              
-              if (!checkoutResponse.ok) {
-                console.error('[FRONTEND] Checkout failed:', checkoutData);
-                throw new Error(checkoutData.error || 'Checkout session creation failed');
-              }
-              
-              if (checkoutData.developmentMode) {
-                console.log('[FRONTEND] Using mock payment mode');
-              }
-              
-              // Redirect to Stripe or mock success page
-              console.log('🔄 Redirecting to:', checkoutData.url);
-              window.location.href = checkoutData.url;
+              // Redirect to new checkout page with Stripe Elements
+              window.location.href = '/checkout';
               
             } catch (error) {
               await showError('Error: ' + error.message, 'Booking Error');
@@ -4246,6 +4507,509 @@ app.get('/event-details', (c) => {
             const endMinutes = endHour * 60 + endMin;
             return Math.ceil((endMinutes - startMinutes) / 60);
           }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Checkout Page with Stripe Elements
+app.get('/checkout', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Checkout - In The House Productions</title>
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://js.stripe.com/v3/"></script>
+        <style>
+          :root {
+            --primary-red: #E31E24;
+            --chrome-silver: #C0C0C0;
+            --accent-neon: #FF0040;
+          }
+          body { background: #000; color: #fff; min-height: 100vh; }
+          .checkout-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 2rem;
+          }
+          .order-summary {
+            background: linear-gradient(135deg, #0A0A0A 0%, #1A1A1A 100%);
+            border: 2px solid var(--chrome-silver);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+          }
+          .line-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #333;
+          }
+          .line-item:last-child {
+            border-bottom: none;
+          }
+          .total-line {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #22c55e;
+            padding-top: 1rem;
+            margin-top: 0.5rem;
+            border-top: 2px solid var(--primary-red);
+          }
+          .payment-form {
+            background: linear-gradient(135deg, #0A0A0A 0%, #1A1A1A 100%);
+            border: 2px solid var(--chrome-silver);
+            border-radius: 1rem;
+            padding: 1.5rem;
+          }
+          #payment-element {
+            min-height: 200px;
+            padding: 1rem;
+            background: #fff;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+          }
+          #submit-button {
+            width: 100%;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            font-weight: bold;
+            font-size: 1.25rem;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+          }
+          #submit-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.5);
+          }
+          #submit-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+          }
+          #error-message {
+            color: #ef4444;
+            padding: 1rem;
+            text-align: center;
+            font-weight: bold;
+          }
+          .dev-notice {
+            background: #fbbf24;
+            color: #000;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            margin-bottom: 1rem;
+          }
+          .loading-spinner {
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .secure-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: #22c55e;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+          }
+        </style>
+    </head>
+    <body>
+        <div class="checkout-container">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <a href="/">
+                    <img src="/static/logo-chrome-3d.png" alt="In The House Productions" style="max-height: 80px; margin: 0 auto;" onerror="this.style.display='none'">
+                </a>
+                <h1 class="text-3xl font-bold mt-4" style="color: var(--primary-red);">
+                    <i class="fas fa-lock mr-2"></i>Secure Checkout
+                </h1>
+            </div>
+
+            <!-- Development Mode Notice (shown when in dev mode) -->
+            <div id="dev-notice" class="dev-notice hidden">
+                <i class="fas fa-flask mr-2"></i>
+                <strong>Development Mode</strong> - Use test card: 4242 4242 4242 4242
+            </div>
+
+            <!-- Order Summary -->
+            <div class="order-summary">
+                <h2 class="text-xl font-bold mb-4" style="color: var(--chrome-silver);">
+                    <i class="fas fa-receipt mr-2"></i>Order Summary
+                </h2>
+                <div id="line-items">
+                    <div class="text-center text-gray-400 py-4">
+                        <i class="fas fa-spinner loading-spinner mr-2"></i>Loading order details...
+                    </div>
+                </div>
+                <div class="line-item total-line">
+                    <span>Total</span>
+                    <span id="order-total">$0.00</span>
+                </div>
+            </div>
+
+            <!-- Payment Form -->
+            <div class="payment-form">
+                <h2 class="text-xl font-bold mb-4" style="color: var(--chrome-silver);">
+                    <i class="fas fa-credit-card mr-2"></i>Payment Details
+                </h2>
+                
+                <form id="payment-form">
+                    <div id="payment-element">
+                        <!-- Stripe Elements will be inserted here -->
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner loading-spinner mr-2"></i>Loading payment form...
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="submit-button" disabled>
+                        <i class="fas fa-lock mr-2"></i>
+                        <span id="button-text">Pay Now</span>
+                    </button>
+                    
+                    <div id="error-message"></div>
+                    
+                    <div class="secure-badge">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Secured by Stripe - 256-bit SSL encryption</span>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Back Link -->
+            <div class="text-center mt-6">
+                <a href="/event-details" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Event Details
+                </a>
+            </div>
+        </div>
+
+        <script>
+            // Get booking data from localStorage
+            const authToken = localStorage.getItem('authToken');
+            const bookingData = JSON.parse(localStorage.getItem('bookingData') || '{}');
+            const bookingId = localStorage.getItem('bookingId');
+            
+            console.log('[CHECKOUT] Auth token:', authToken ? 'Present' : 'Missing');
+            console.log('[CHECKOUT] Booking data:', bookingData);
+            console.log('[CHECKOUT] Booking ID:', bookingId);
+            
+            // Redirect if not authenticated
+            if (!authToken) {
+                alert('Please log in to continue with checkout');
+                window.location.href = '/login';
+            }
+            
+            // Initialize Stripe
+            let stripe = null;
+            let elements = null;
+            let paymentElement = null;
+            let clientSecret = null;
+            
+            // Calculate hours
+            function calculateHours(start, end) {
+                if (!start || !end) return 4;
+                const [startHour, startMin] = start.split(':').map(Number);
+                const [endHour, endMin] = end.split(':').map(Number);
+                const startMinutes = startHour * 60 + startMin;
+                const endMinutes = endHour * 60 + endMin;
+                return Math.max(Math.ceil((endMinutes - startMinutes) / 60), 4);
+            }
+            
+            // Initialize checkout
+            async function initializeCheckout() {
+                try {
+                    // Prepare items for payment
+                    const items = [{
+                        serviceId: bookingData.dj || bookingData.serviceType || 'dj_cease',
+                        serviceType: bookingData.serviceType || 'dj',
+                        eventDate: bookingData.date,
+                        hours: calculateHours(bookingData.startTime, bookingData.endTime)
+                    }];
+                    
+                    // Create Payment Intent
+                    const response = await fetch('/api/create-payment-intent', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + authToken
+                        },
+                        body: JSON.stringify({
+                            items: items,
+                            bookingId: bookingId,
+                            eventDetails: bookingData
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('[CHECKOUT] Payment Intent response:', data);
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to create payment');
+                    }
+                    
+                    // Update order summary
+                    const lineItemsContainer = document.getElementById('line-items');
+                    lineItemsContainer.innerHTML = data.lineItems.map(item => \`
+                        <div class="line-item">
+                            <span>
+                                <strong>\${item.serviceName}</strong><br>
+                                <small class="text-gray-400">\${item.hours} hours</small>
+                            </span>
+                            <span>$\${item.subtotal.toFixed(2)}</span>
+                        </div>
+                    \`).join('');
+                    
+                    document.getElementById('order-total').textContent = data.amountFormatted;
+                    
+                    // Handle development mode
+                    if (data.developmentMode) {
+                        document.getElementById('dev-notice').classList.remove('hidden');
+                        
+                        // In dev mode, show mock payment form
+                        document.getElementById('payment-element').innerHTML = \`
+                            <div class="text-center py-6">
+                                <i class="fas fa-credit-card text-4xl mb-4" style="color: var(--chrome-silver);"></i>
+                                <p class="text-lg font-bold mb-2">Development Mode Payment</p>
+                                <p class="text-gray-600 mb-4">Click "Pay Now" to simulate a successful payment</p>
+                                <div class="bg-gray-100 p-3 rounded text-sm text-gray-600">
+                                    Test Card: 4242 4242 4242 4242<br>
+                                    Expiry: Any future date | CVC: Any 3 digits
+                                </div>
+                            </div>
+                        \`;
+                        
+                        document.getElementById('submit-button').disabled = false;
+                        document.getElementById('button-text').textContent = 'Pay ' + data.amountFormatted + ' (Test)';
+                        
+                        // Store data for mock payment
+                        window.mockPaymentData = {
+                            bookingId: data.bookingId,
+                            amount: data.amount,
+                            clientSecret: data.clientSecret
+                        };
+                        
+                        return; // Don't initialize Stripe in dev mode
+                    }
+                    
+                    // Production mode - Initialize Stripe
+                    clientSecret = data.clientSecret;
+                    
+                    // Get Stripe public key (you'll need to provide this)
+                    const stripePublicKey = 'pk_test_YOUR_PUBLIC_KEY'; // Replace with actual key
+                    stripe = Stripe(stripePublicKey);
+                    
+                    elements = stripe.elements({ clientSecret });
+                    paymentElement = elements.create('payment');
+                    paymentElement.mount('#payment-element');
+                    
+                    paymentElement.on('ready', () => {
+                        document.getElementById('submit-button').disabled = false;
+                        document.getElementById('button-text').textContent = 'Pay ' + data.amountFormatted;
+                    });
+                    
+                } catch (error) {
+                    console.error('[CHECKOUT] Initialization error:', error);
+                    document.getElementById('error-message').textContent = error.message;
+                    document.getElementById('payment-element').innerHTML = \`
+                        <div class="text-center text-red-500 py-6">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                            <p>\${error.message}</p>
+                            <a href="/event-details" class="inline-block mt-4 text-blue-500 hover:underline">
+                                Go back and try again
+                            </a>
+                        </div>
+                    \`;
+                }
+            }
+            
+            // Handle form submission
+            document.getElementById('payment-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                
+                const submitButton = document.getElementById('submit-button');
+                const buttonText = document.getElementById('button-text');
+                const errorMessage = document.getElementById('error-message');
+                
+                submitButton.disabled = true;
+                buttonText.innerHTML = '<i class="fas fa-spinner loading-spinner mr-2"></i>Processing...';
+                errorMessage.textContent = '';
+                
+                try {
+                    // Handle development mode mock payment
+                    if (window.mockPaymentData) {
+                        console.log('[CHECKOUT] Processing mock payment...');
+                        
+                        // Confirm mock payment
+                        const confirmResponse = await fetch('/api/payment/confirm', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ' + authToken
+                            },
+                            body: JSON.stringify({
+                                paymentIntentId: window.mockPaymentData.clientSecret,
+                                bookingId: window.mockPaymentData.bookingId
+                            })
+                        });
+                        
+                        if (confirmResponse.ok) {
+                            // Redirect to success page
+                            window.location.href = '/checkout/mock-success?session_id=' + 
+                                window.mockPaymentData.clientSecret + 
+                                '&booking_id=' + window.mockPaymentData.bookingId + 
+                                '&total=' + (window.mockPaymentData.amount / 100).toFixed(2);
+                        } else {
+                            throw new Error('Mock payment confirmation failed');
+                        }
+                        return;
+                    }
+                    
+                    // Production mode - Confirm payment with Stripe
+                    const { error } = await stripe.confirmPayment({
+                        elements,
+                        confirmParams: {
+                            return_url: window.location.origin + '/booking-success'
+                        }
+                    });
+                    
+                    if (error) {
+                        throw new Error(error.message);
+                    }
+                    
+                } catch (error) {
+                    console.error('[CHECKOUT] Payment error:', error);
+                    errorMessage.textContent = error.message;
+                    submitButton.disabled = false;
+                    buttonText.innerHTML = '<i class="fas fa-lock mr-2"></i>Try Again';
+                }
+            });
+            
+            // Initialize on page load
+            initializeCheckout();
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// Booking Success Page (after Stripe redirect)
+app.get('/booking-success', async (c) => {
+  const paymentIntentId = c.req.query('payment_intent')
+  const { DB } = c.env
+  
+  // Update booking if we have a payment intent
+  if (paymentIntentId && DB) {
+    await DB.prepare(
+      "UPDATE bookings SET payment_status = 'paid', status = 'confirmed', updated_at = datetime('now') WHERE stripe_payment_intent_id = ?"
+    ).bind(paymentIntentId).run()
+  }
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Confirmed! - In The House Productions</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          body { background: #000; color: #fff; }
+          .success-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            text-align: center;
+            padding: 2rem;
+          }
+          .success-icon {
+            font-size: 5rem;
+            color: #22c55e;
+            animation: bounce 1s ease-in-out;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+          }
+          .confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 1000;
+          }
+        </style>
+    </head>
+    <body>
+        <div class="confetti" id="confetti"></div>
+        <div class="success-container" style="position: relative; z-index: 1001;">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h1 class="text-4xl font-bold mt-6 mb-4" style="color: #22c55e;">
+                Booking Confirmed!
+            </h1>
+            <p class="text-xl mb-6 text-gray-300">
+                Your payment was successful and your booking is confirmed.
+            </p>
+            <div class="bg-gray-800 p-6 rounded-lg mb-6 text-left">
+                <h3 class="text-lg font-bold mb-4" style="color: #FFD700;">What's Next?</h3>
+                <ul class="space-y-3 text-gray-300">
+                    <li><i class="fas fa-envelope text-green-500 mr-2"></i> Confirmation email sent to your inbox</li>
+                    <li><i class="fas fa-calendar-check text-green-500 mr-2"></i> Your event date is reserved</li>
+                    <li><i class="fas fa-user-tie text-green-500 mr-2"></i> Your DJ/Photobooth team has been notified</li>
+                    <li><i class="fas fa-phone text-green-500 mr-2"></i> We'll contact you 1 week before your event</li>
+                </ul>
+            </div>
+            <div class="flex gap-4 justify-center">
+                <a href="/" class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors">
+                    <i class="fas fa-home mr-2"></i>Return Home
+                </a>
+            </div>
+            <p class="text-sm text-gray-500 mt-6">
+                Questions? Contact us at (816) 217-1094 or info@inthehouseproductions.com
+            </p>
+        </div>
+        <script>
+            // Simple confetti animation
+            var colors = ['#E31E24', '#FFD700', '#22c55e', '#C0C0C0', '#FF0040'];
+            var confettiContainer = document.getElementById('confetti');
+            
+            for (var i = 0; i < 100; i++) {
+                var confetti = document.createElement('div');
+                var color = colors[Math.floor(Math.random() * colors.length)];
+                var left = Math.random() * 100;
+                var animDuration = 2 + Math.random() * 3;
+                var animDelay = Math.random() * 2;
+                confetti.style.cssText = 'position: absolute; width: 10px; height: 10px; background: ' + color + '; left: ' + left + '%; top: -10px; animation: fall ' + animDuration + 's linear forwards; animation-delay: ' + animDelay + 's;';
+                confettiContainer.appendChild(confetti);
+            }
+            
+            var style = document.createElement('style');
+            style.textContent = '@keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }';
+            document.head.appendChild(style);
+            
+            // Clear localStorage booking data
+            localStorage.removeItem('bookingData');
+            localStorage.removeItem('bookingId');
         </script>
     </body>
     </html>
@@ -5444,6 +6208,272 @@ app.get('/api/admin/providers', async (c) => {
   } catch (error) {
     console.error('Admin providers error:', error)
     return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// ================================
+// STRIPE PRODUCT MANAGEMENT
+// ================================
+
+// Complete service catalog for Stripe
+const stripeServiceCatalog = {
+  // DJ Services
+  dj_party: {
+    name: 'DJ Service - Party Package',
+    description: 'Professional DJ services for parties. Up to 4 hours, sound equipment, extensive music library.',
+    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
+    metadata: { service_type: 'dj', package_type: 'party' }
+  },
+  dj_wedding: {
+    name: 'DJ Service - Wedding Package',
+    description: 'Premium DJ services for weddings. Up to 5 hours, MC services, ceremony and reception music.',
+    basePrice: 85000, baseHours: 5, hourlyRate: 10000,
+    metadata: { service_type: 'dj', package_type: 'wedding' }
+  },
+  dj_additional_hour: {
+    name: 'DJ Service - Additional Hour',
+    description: 'Add extra hour to your DJ booking.',
+    basePrice: 10000, isAddon: true,
+    metadata: { service_type: 'dj', addon_type: 'additional_hour' }
+  },
+  // Photobooth Services
+  photobooth_strips: {
+    name: 'Photobooth - Unlimited Photo Strips',
+    description: 'Professional photobooth with unlimited 2x6 prints. 4 hours, attendant, props, digital gallery.',
+    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
+    metadata: { service_type: 'photobooth', print_type: 'strips' }
+  },
+  photobooth_4x6: {
+    name: 'Photobooth - 4x6 Print Package',
+    description: 'Professional photobooth with 4x6 prints. 4 hours, attendant, props, digital gallery.',
+    basePrice: 55000, baseHours: 4, hourlyRate: 10000,
+    metadata: { service_type: 'photobooth', print_type: '4x6' }
+  },
+  photobooth_additional_hour: {
+    name: 'Photobooth - Additional Hour',
+    description: 'Add extra hour to your Photobooth booking.',
+    basePrice: 10000, isAddon: true,
+    metadata: { service_type: 'photobooth', addon_type: 'additional_hour' }
+  },
+  // Add-on Services
+  karaoke: {
+    name: 'Karaoke Add-on',
+    description: 'Add karaoke to your event! Karaoke system, wireless mics, thousands of songs.',
+    basePrice: 10000, baseHours: 4, hourlyRate: 5000,
+    metadata: { service_type: 'addon', addon_type: 'karaoke' }
+  },
+  karaoke_additional_hour: {
+    name: 'Karaoke - Additional Hour',
+    description: 'Add extra hour to Karaoke addon.',
+    basePrice: 5000, isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'karaoke_hour' }
+  },
+  uplighting: {
+    name: 'Uplighting Add-on',
+    description: 'Professional LED uplighting. Up to 6 wireless lights, customizable colors.',
+    basePrice: 10000, baseHours: 4, hourlyRate: 5000,
+    metadata: { service_type: 'addon', addon_type: 'uplighting' }
+  },
+  uplighting_additional_hour: {
+    name: 'Uplighting - Additional Hour',
+    description: 'Add extra hour to Uplighting addon.',
+    basePrice: 5000, isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'uplighting_hour' }
+  },
+  foam_pit: {
+    name: 'Foam Pit Rental',
+    description: 'Turn your event into a foam party! Professional foam machine, solution, setup and cleanup.',
+    basePrice: 50000, baseHours: 4, hourlyRate: 10000,
+    metadata: { service_type: 'addon', addon_type: 'foam_pit' }
+  },
+  foam_pit_additional_hour: {
+    name: 'Foam Pit - Additional Hour',
+    description: 'Add extra hour to Foam Pit rental.',
+    basePrice: 10000, isAddon: true,
+    metadata: { service_type: 'addon', addon_type: 'foam_pit_hour' }
+  }
+}
+
+// Admin API: Sync all products to Stripe
+app.post('/api/admin/stripe/sync-products', async (c) => {
+  try {
+    // Verify admin authentication
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (payload.role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403)
+    }
+    
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
+    if (!STRIPE_SECRET_KEY) {
+      return c.json({ error: 'Stripe not configured' }, 500)
+    }
+    
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2024-11-20.acacia' as any
+    })
+    
+    const results: any = {}
+    
+    // Get existing products
+    const existingProducts = await stripe.products.list({ limit: 100, active: true })
+    const existingMap = new Map(
+      existingProducts.data.map(p => [p.metadata.service_key, p])
+    )
+    
+    for (const [serviceKey, service] of Object.entries(stripeServiceCatalog)) {
+      try {
+        let product = existingMap.get(serviceKey)
+        
+        // Create product if not exists
+        if (!product) {
+          product = await stripe.products.create({
+            name: service.name,
+            description: service.description,
+            active: true,
+            metadata: {
+              service_key: serviceKey,
+              ...service.metadata
+            }
+          })
+        }
+        
+        // Check for existing base price
+        const existingPrices = await stripe.prices.list({
+          product: product.id,
+          active: true,
+          limit: 10
+        })
+        
+        let basePrice = existingPrices.data.find(p => 
+          p.metadata.price_type === 'base' && p.unit_amount === service.basePrice
+        )
+        
+        // Create base price if not exists
+        if (!basePrice) {
+          basePrice = await stripe.prices.create({
+            product: product.id,
+            unit_amount: service.basePrice,
+            currency: 'usd',
+            metadata: {
+              price_type: 'base',
+              service_key: serviceKey,
+              base_hours: service.baseHours?.toString() || '0'
+            }
+          })
+        }
+        
+        // Create hourly price if applicable
+        let hourlyPrice = null
+        if (service.hourlyRate) {
+          hourlyPrice = existingPrices.data.find(p => 
+            p.metadata.price_type === 'hourly'
+          )
+          
+          if (!hourlyPrice) {
+            hourlyPrice = await stripe.prices.create({
+              product: product.id,
+              unit_amount: service.hourlyRate,
+              currency: 'usd',
+              metadata: {
+                price_type: 'hourly',
+                service_key: serviceKey
+              }
+            })
+          }
+        }
+        
+        results[serviceKey] = {
+          success: true,
+          productId: product.id,
+          basePriceId: basePrice.id,
+          hourlyPriceId: hourlyPrice?.id || null,
+          name: service.name,
+          baseAmount: `$${(service.basePrice / 100).toFixed(2)}`,
+          hourlyAmount: service.hourlyRate ? `$${(service.hourlyRate / 100).toFixed(2)}/hr` : null
+        }
+      } catch (error: any) {
+        results[serviceKey] = {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+    
+    const successful = Object.values(results).filter((r: any) => r.success).length
+    const failed = Object.values(results).filter((r: any) => !r.success).length
+    
+    return c.json({
+      success: true,
+      message: `Synced ${successful} products to Stripe${failed > 0 ? `, ${failed} failed` : ''}`,
+      results
+    })
+    
+  } catch (error: any) {
+    console.error('Stripe sync error:', error)
+    return c.json({ error: error.message || 'Stripe sync failed' }, 500)
+  }
+})
+
+// Admin API: List Stripe products
+app.get('/api/admin/stripe/products', async (c) => {
+  try {
+    // Verify admin authentication
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    const payload = await verifyToken(token, getJWTSecret(c.env))
+    
+    if (payload.role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403)
+    }
+    
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
+    if (!STRIPE_SECRET_KEY) {
+      return c.json({ error: 'Stripe not configured' }, 500)
+    }
+    
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2024-11-20.acacia' as any
+    })
+    
+    const products = await stripe.products.list({ limit: 100, active: true })
+    const prices = await stripe.prices.list({ limit: 100, active: true })
+    
+    const productData = products.data.map(p => {
+      const productPrices = prices.data.filter(pr => pr.product === p.id)
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        active: p.active,
+        metadata: p.metadata,
+        prices: productPrices.map(pr => ({
+          id: pr.id,
+          amount: `$${((pr.unit_amount || 0) / 100).toFixed(2)}`,
+          type: pr.metadata.price_type || 'base'
+        }))
+      }
+    })
+    
+    return c.json({
+      success: true,
+      count: products.data.length,
+      products: productData
+    })
+    
+  } catch (error: any) {
+    console.error('Stripe products error:', error)
+    return c.json({ error: error.message || 'Failed to fetch products' }, 500)
   }
 })
 
