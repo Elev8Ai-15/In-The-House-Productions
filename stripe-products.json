@@ -1,0 +1,98 @@
+{
+  "dj_party": {
+    "productId": "prod_ToDFOgLBDchORj",
+    "basePriceId": "price_1SqapJFSfYQ6chIH6xvYJfjJ",
+    "hourlyPriceId": "price_1SqapKFSfYQ6chIHjXKTn8SY",
+    "name": "DJ Service - Party Package",
+    "baseAmount": 50000,
+    "hourlyAmount": 10000
+  },
+  "dj_wedding": {
+    "productId": "prod_ToDF6PUk1UQjBI",
+    "basePriceId": "price_1SqapKFSfYQ6chIHq0DZLq6g",
+    "hourlyPriceId": "price_1SqapLFSfYQ6chIHpglmaDe6",
+    "name": "DJ Service - Wedding Package",
+    "baseAmount": 85000,
+    "hourlyAmount": 10000
+  },
+  "dj_additional_hour": {
+    "productId": "prod_ToDF8Vhs9Bj3wT",
+    "basePriceId": "price_1SqapMFSfYQ6chIHIrCAaSHG",
+    "hourlyPriceId": null,
+    "name": "DJ Service - Additional Hour",
+    "baseAmount": 10000,
+    "hourlyAmount": null
+  },
+  "photobooth_strips": {
+    "productId": "prod_ToDFL1hAWpehls",
+    "basePriceId": "price_1SqapNFSfYQ6chIHaud28ZaW",
+    "hourlyPriceId": "price_1SqapNFSfYQ6chIHOsN92kRU",
+    "name": "Photobooth - Unlimited Photo Strips",
+    "baseAmount": 50000,
+    "hourlyAmount": 10000
+  },
+  "photobooth_4x6": {
+    "productId": "prod_ToDFmdHbkOxcgo",
+    "basePriceId": "price_1SqapOFSfYQ6chIHFGIzQJjG",
+    "hourlyPriceId": "price_1SqapOFSfYQ6chIHWx7ZMuZG",
+    "name": "Photobooth - 4x6 Print Package",
+    "baseAmount": 55000,
+    "hourlyAmount": 10000
+  },
+  "photobooth_additional_hour": {
+    "productId": "prod_ToDF54tHo4Pcc1",
+    "basePriceId": "price_1SqapPFSfYQ6chIHihMxvXtd",
+    "hourlyPriceId": null,
+    "name": "Photobooth - Additional Hour",
+    "baseAmount": 10000,
+    "hourlyAmount": null
+  },
+  "karaoke": {
+    "productId": "prod_ToDFQrLja1TSWj",
+    "basePriceId": "price_1SqapQFSfYQ6chIHUiHo5XBd",
+    "hourlyPriceId": "price_1SqapQFSfYQ6chIHtoVsqxMz",
+    "name": "Karaoke Add-on",
+    "baseAmount": 10000,
+    "hourlyAmount": 5000
+  },
+  "karaoke_additional_hour": {
+    "productId": "prod_ToDFlchzOC3qpa",
+    "basePriceId": "price_1SqapRFSfYQ6chIHgsrrroIx",
+    "hourlyPriceId": null,
+    "name": "Karaoke - Additional Hour",
+    "baseAmount": 5000,
+    "hourlyAmount": null
+  },
+  "uplighting": {
+    "productId": "prod_ToDF04ZmVCPue3",
+    "basePriceId": "price_1SqapSFSfYQ6chIHd8Ijf0BG",
+    "hourlyPriceId": "price_1SqapSFSfYQ6chIHzszs497O",
+    "name": "Uplighting Add-on",
+    "baseAmount": 10000,
+    "hourlyAmount": 5000
+  },
+  "uplighting_additional_hour": {
+    "productId": "prod_ToDFUbCLygkrZm",
+    "basePriceId": "price_1SqapTFSfYQ6chIHqsvIKvUF",
+    "hourlyPriceId": null,
+    "name": "Uplighting - Additional Hour",
+    "baseAmount": 5000,
+    "hourlyAmount": null
+  },
+  "foam_pit": {
+    "productId": "prod_ToDF09NOtegGiW",
+    "basePriceId": "price_1SqapUFSfYQ6chIHuOrVTVL0",
+    "hourlyPriceId": "price_1SqapUFSfYQ6chIHO4JCizXI",
+    "name": "Foam Pit Rental",
+    "baseAmount": 50000,
+    "hourlyAmount": 10000
+  },
+  "foam_pit_additional_hour": {
+    "productId": "prod_ToDG8qq4VGzDcf",
+    "basePriceId": "price_1SqapVFSfYQ6chIHVZTlurP9",
+    "hourlyPriceId": null,
+    "name": "Foam Pit - Additional Hour",
+    "baseAmount": 10000,
+    "hourlyAmount": null
+  }
+}
