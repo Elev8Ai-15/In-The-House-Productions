@@ -3074,7 +3074,7 @@ app.get('/', (c) => {
         <div class="relative z-10">
             <!-- Compact Header -->
             <header id="navigation" role="banner" class="text-center" style="padding: 1rem 0 0.5rem;">
-                <div style="max-width: 500px; margin: 0 auto; padding: 0 1rem;">
+                <div style="max-width: 625px; margin: 0 auto; padding: 0 1rem;">
                     <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="width: 100%; height: auto; display: block;">
                 </div>
                 <div style="max-width: 300px; margin: 0.75rem auto;">
@@ -3086,91 +3086,64 @@ app.get('/', (c) => {
             <!-- Service Cards - Compact Layout -->
             <main id="main-content" role="main" style="padding: 0 1rem 2rem;">
                 <style>
-                    .service-cards-container {
-                        max-width: 960px;
-                        margin: 0 auto;
+                    .cards-wrapper { max-width: 900px; margin: 0 auto; padding: 0 1rem; }
+                    .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+                    @media (max-width: 700px) { .cards-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } }
+                    .svc-card {
+                        background: #0a0a0a; border: 2px solid #C0C0C0; border-radius: 12px;
+                        padding: 1.25rem; cursor: pointer; transition: all 0.3s ease;
                     }
-                    .service-cards-grid {
-                        display: grid;
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: 1.5rem;
-                    }
-                    @media (max-width: 768px) {
-                        .service-cards-grid {
-                            grid-template-columns: 1fr;
-                            max-width: 400px;
-                            margin: 0 auto;
-                        }
-                    }
-                    .service-card {
-                        padding: 1.25rem !important;
-                        margin: 0 !important;
-                        max-width: 100% !important;
-                    }
-                    .service-card-icon {
-                        margin-bottom: 0.75rem !important;
-                    }
-                    .service-card .breathing-room {
-                        margin-bottom: 0.75rem !important;
-                    }
+                    .svc-card:hover { border-color: #E31E24; box-shadow: 0 0 20px rgba(227,30,36,0.4); transform: translateY(-2px); }
+                    .svc-logo { height: 130px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+                    .svc-logo img { max-height: 120px; max-width: 100%; object-fit: contain; transform: scale(1.15); }
+                    .svc-desc { color: #C0C0C0; font-size: 0.9rem; text-align: center; height: 40px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; }
+                    .svc-price-box { background: #1a1a1a; border: 1px solid #C0C0C0; border-radius: 8px; padding: 0.75rem; text-align: center; margin-bottom: 0.75rem; }
+                    .svc-price { color: #FFD700; font-size: 1.3rem; font-weight: bold; margin-bottom: 0.25rem; }
+                    .svc-price-detail { color: #C0C0C0; font-size: 0.8rem; line-height: 1.4; }
+                    .svc-price-note { color: #888; font-size: 0.75rem; margin-top: 0.25rem; }
+                    .svc-features { list-style: none; padding: 0; margin: 0 0 0.75rem 0; }
+                    .svc-features li { color: #C0C0C0; font-size: 0.85rem; margin-bottom: 0.3rem; display: flex; align-items: center; }
+                    .svc-features li i { color: #E31E24; margin-right: 0.5rem; font-size: 0.75rem; width: 14px; }
+                    .svc-btn { width: 100%; background: linear-gradient(180deg, #E31E24 0%, #8B0000 100%); color: white; border: none; padding: 0.7rem; border-radius: 6px; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
+                    .svc-btn:hover { background: linear-gradient(180deg, #ff3333 0%, #aa0000 100%); box-shadow: 0 0 15px rgba(227,30,36,0.6); }
                 </style>
-                <div class="service-cards-container">
-                    <div class="service-cards-grid">
-                    <!-- DJ Services Card -->
-                    <div class="service-card no-select focusable" onclick="window.location.href='/dj-services'" role="button" tabindex="0" aria-label="Book DJ Services - Professional DJs starting at $500" onkeypress="if(event.key==='Enter')window.location.href='/dj-services'">
-                        <div class="service-card-icon">
-                            <i class="fas fa-headphones-alt" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
+                <div class="cards-wrapper">
+                    <div class="cards-grid">
+                        <!-- DJ Services Card -->
+                        <div class="svc-card" onclick="window.location.href='/dj-services'">
+                            <div class="svc-logo"><img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES"></div>
+                            <div class="svc-desc">Professional DJs for your special event</div>
+                            <div class="svc-price-box">
+                                <div class="svc-price">Starting at $500</div>
+                                <div class="svc-price-detail">Parties (up to 4 hrs)<br>Weddings: $850 (up to 5 hrs)</div>
+                                <div class="svc-price-note">$100/hr additional</div>
+                            </div>
+                            <ul class="svc-features">
+                                <li><i class="fas fa-check"></i>3 Professional DJs</li>
+                                <li><i class="fas fa-check"></i>20+ Years Experience</li>
+                                <li><i class="fas fa-check"></i>Custom Playlists</li>
+                                <li><i class="fas fa-check"></i>All Event Types</li>
+                            </ul>
+                            <button class="svc-btn">SELECT SERVICE <i class="fas fa-arrow-right"></i></button>
                         </div>
-                        <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
-                            <img src="/static/dj-services-logo-3d.png" alt="DJ SERVICES" loading="lazy" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+                        
+                        <!-- Photobooth Card -->
+                        <div class="svc-card" onclick="window.location.href='/photobooth'">
+                            <div class="svc-logo"><img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH"></div>
+                            <div class="svc-desc">Fun memories with instant prints</div>
+                            <div class="svc-price-box">
+                                <div class="svc-price">Starting at $500</div>
+                                <div class="svc-price-detail">4 hours unlimited strips<br>4x6 Prints: $550 (4 hrs)</div>
+                                <div class="svc-price-note">$100/hr additional</div>
+                            </div>
+                            <ul class="svc-features">
+                                <li><i class="fas fa-check"></i>2 Professional Units</li>
+                                <li><i class="fas fa-check"></i>Unlimited Prints</li>
+                                <li><i class="fas fa-check"></i>Custom Backdrops</li>
+                                <li><i class="fas fa-check"></i>Digital Gallery</li>
+                            </ul>
+                            <button class="svc-btn">SELECT SERVICE <i class="fas fa-arrow-right"></i></button>
                         </div>
-                        <p class="service-card-subtitle breathing-room">
-                            Professional DJs spinning the perfect soundtrack for your special event
-                        </p>
-                        <div style="background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%); border: 1px solid rgba(192, 192, 192, 0.3); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
-                            <p style="font-size: 1.5rem; font-weight: bold; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
-                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Parties (up to 4 hrs)</p>
-                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">Weddings: $850 (up to 5 hrs)</p>
-                            <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
-                        </div>
-                        <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 3 Professional DJs</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 20+ Years Experience</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Custom Playlists</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> All Event Types</li>
-                        </ul>
-                        <button class="btn-3d btn-responsive">
-                            SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
-                        </button>
-                    </div>
-                    
-                    <!-- Photobooth Card -->
-                    <div class="service-card no-select focusable" onclick="window.location.href='/photobooth'" role="button" tabindex="0" aria-label="Book Photobooth Services - Premium photobooths starting at $500" onkeypress="if(event.key==='Enter')window.location.href='/photobooth'">
-                        <div class="service-card-icon">
-                            <i class="fas fa-camera-retro" style="color: var(--primary-red); font-size: 70px; display: block; text-align: center;"></i>
-                        </div>
-                        <div class="breathing-room" style="max-width: 100%; overflow: hidden;">
-                            <img src="/static/photobooth-logo-3d.png" alt="PHOTOBOOTH" loading="lazy" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
-                        </div>
-                        <p class="service-card-subtitle breathing-room">
-                            Fun memories with instant prints and shareable moments
-                        </p>
-                        <div style="background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%); border: 1px solid rgba(192, 192, 192, 0.3); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
-                            <p style="font-size: 1.5rem; font-weight: bold; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; margin-bottom: 0.5rem;">Starting at $500</p>
-                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4 hours unlimited strips</p>
-                            <p style="font-size: 0.9rem; color: var(--chrome-silver); text-align: center; margin-bottom: 0.25rem;">4x6 Prints: $550 (4 hrs)</p>
-                            <p style="font-size: 0.8rem; color: #999; text-align: center;">$100/hr additional</p>
-                        </div>
-                        <ul class="service-card-subtitle breathing-room" style="list-style: none; padding: 0;">
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> 2 Professional Units</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Unlimited Prints</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Custom Backdrops</li>
-                            <li style="margin-bottom: 0.5rem;"><i class="fas fa-check" style="color: var(--primary-red); margin-right: 0.5rem;"></i> Digital Gallery</li>
-                        </ul>
-                        <button class="btn-3d btn-responsive">
-                            SELECT SERVICE <i class="fas fa-arrow-right" style="margin-left: 0.5rem;"></i>
-                        </button>
-                    </div>
                     </div>
                 </div>
                 
@@ -4729,9 +4702,13 @@ app.get('/event-details', (c) => {
               }
               
               // Store booking ID and data for checkout page
+              // CRITICAL FIX: Include startTime and endTime for payment intent creation
               localStorage.setItem('bookingId', result.bookingId);
               localStorage.setItem('bookingData', JSON.stringify({
                 ...bookingData,
+                startTime,
+                endTime,
+                eventDetails,
                 bookingId: result.bookingId
               }));
               
