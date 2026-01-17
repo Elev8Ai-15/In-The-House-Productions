@@ -2740,20 +2740,19 @@ app.post('/api/bookings/create', async (c) => {
       ).run()
     }
     
-    // Insert event details
+    // Insert event details (using production schema column names)
     const eventDetails = bookingData.eventDetails
     const eventResult = await DB.prepare(`
       INSERT INTO event_details (
-        booking_id, event_name, event_type, venue_name,
-        venue_address, venue_city, venue_state, venue_zip,
-        expected_guests, special_requests, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        booking_id, event_name, event_type,
+        street_address, city, state, zip_code,
+        number_of_guests, special_requests, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).bind(
       bookingId,
       eventDetails.eventName || '',
       eventDetails.eventType || '',
-      eventDetails.venueName || '',
-      eventDetails.venueAddress || '',
+      (eventDetails.venueName ? eventDetails.venueName + ' - ' : '') + (eventDetails.venueAddress || ''),
       eventDetails.venueCity || '',
       eventDetails.venueState || '',
       eventDetails.venueZip || '',
