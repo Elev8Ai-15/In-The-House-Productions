@@ -2702,17 +2702,20 @@ app.post('/api/bookings/create', async (c) => {
     const hours = calculateHours(bookingData.startTime, bookingData.endTime)
     const totalPrice = service.basePrice + (service.hourlyRate * hours)
     
-    // Insert booking
+    // Insert booking (CRITICAL: Include event_start_time and event_end_time - NOT NULL fields)
     const bookingResult = await DB.prepare(`
       INSERT INTO bookings (
         user_id, service_type, service_provider, event_date,
+        event_start_time, event_end_time,
         total_price, payment_status, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).bind(
       payload.userId,
       bookingData.serviceType,
       bookingData.serviceProvider,
       bookingData.eventDate,
+      bookingData.startTime,
+      bookingData.endTime,
       totalPrice,
       'pending',
       'pending'
