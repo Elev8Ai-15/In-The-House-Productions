@@ -3072,39 +3072,46 @@ app.get('/', (c) => {
 
         <!-- Content -->
         <div class="relative z-10">
-            <!-- Header -->
-            <header id="navigation" role="banner" class="section-spacing text-center responsive-container">
-                <div class="hero-logo-wrapper breathing-room">
+            <!-- Compact Header -->
+            <header id="navigation" role="banner" class="text-center" style="padding: 1rem 0 0.5rem;">
+                <div style="max-width: 500px; margin: 0 auto; padding: 0 1rem;">
                     <img src="/static/hero-logo-3d-v2.png" alt="IN THE HOUSE PRODUCTIONS" style="width: 100%; height: auto; display: block;">
                 </div>
-                <div class="flex justify-center gap-4 breathing-room">
-                    <div class="staff-line" style="max-width: min(90%, 400px); width: 100%;"></div>
+                <div style="max-width: 300px; margin: 0.75rem auto;">
+                    <div class="staff-line"></div>
                 </div>
-                <p class="tagline text-3d-gold">"Your Event, Our Expertise"</p>
+                <p class="text-3d-gold" style="font-size: clamp(1.1rem, 3vw, 1.5rem); margin: 0.5rem 0 1rem; font-weight: 600;">"Your Event, Our Expertise"</p>
             </header>
 
-            <!-- Service Cards -->
-            <main id="main-content" role="main" class="responsive-container section-spacing">
-                <div class="service-grid" style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; padding: 0 1rem;">
-            <main class="responsive-container section-spacing">
+            <!-- Service Cards - Compact Layout -->
+            <main id="main-content" role="main" style="padding: 0 1rem 2rem;">
                 <style>
                     .service-cards-container {
-                        max-width: 1000px;
+                        max-width: 960px;
                         margin: 0 auto;
-                        padding: 0 2rem;
                     }
                     .service-cards-grid {
                         display: grid;
-                        grid-template-columns: repeat(2, minmax(0, 450px));
-                        gap: 2rem;
-                        justify-content: center;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 1.5rem;
                     }
                     @media (max-width: 768px) {
                         .service-cards-grid {
                             grid-template-columns: 1fr;
-                            max-width: 450px;
+                            max-width: 400px;
                             margin: 0 auto;
                         }
+                    }
+                    .service-card {
+                        padding: 1.25rem !important;
+                        margin: 0 !important;
+                        max-width: 100% !important;
+                    }
+                    .service-card-icon {
+                        margin-bottom: 0.75rem !important;
+                    }
+                    .service-card .breathing-room {
+                        margin-bottom: 0.75rem !important;
                     }
                 </style>
                 <div class="service-cards-container">
@@ -3166,93 +3173,59 @@ app.get('/', (c) => {
                     </div>
                     </div>
                 </div>
-                </div>
                 
                 <!-- Add-On Services Section -->
-                <div class="mt-16">
-                    <h3 class="text-3d-logo-12k-gold text-3d-medium mb-8 text-center">⭐ ADD-ON SERVICES ⭐</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-7xl mx-auto px-4">
-                        <!-- Karaoke Setup -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('karaoke')">
-                            <div class="text-center mb-4">
-                                <i class="fas fa-microphone text-5xl" style="color: var(--primary-red);"></i>
+                <div style="margin-top: 2rem; max-width: 1200px; margin-left: auto; margin-right: auto;">
+                    <h3 class="text-3d-logo-12k-gold text-center" style="font-size: clamp(1.25rem, 3vw, 1.75rem); margin-bottom: 1rem;">⭐ ADD-ON SERVICES ⭐</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 px-2">
+                        <!-- Karaoke -->
+                        <div class="bg-black border border-chrome-silver rounded-lg p-3 hover:border-primary-red transition-all cursor-pointer" onclick="showServiceModal('karaoke')">
+                            <div class="text-center mb-2">
+                                <i class="fas fa-microphone text-3xl" style="color: var(--primary-red);"></i>
                             </div>
-                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Karaoke Setup</h4>
-                            <div class="text-center mb-4">
-                                <p class="text-2xl font-bold text-primary-red">Additional $100</p>
-                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
-                                <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
-                            </div>
-                            <p class="text-sm text-center text-gray-400">Professional karaoke system with extensive song library</p>
-                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
-                                LEARN MORE
-                            </button>
+                            <h4 class="text-sm font-bold text-center mb-1 text-chrome-silver">Karaoke</h4>
+                            <p class="text-lg font-bold text-primary-red text-center">+$100</p>
+                            <p class="text-xs text-gray-400 text-center">4hr event</p>
                         </div>
 
                         <!-- Uplighting -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('uplighting')">
-                            <div class="text-center mb-4">
-                                <i class="fas fa-lightbulb text-5xl" style="color: var(--primary-red);"></i>
+                        <div class="bg-black border border-chrome-silver rounded-lg p-3 hover:border-primary-red transition-all cursor-pointer" onclick="showServiceModal('uplighting')">
+                            <div class="text-center mb-2">
+                                <i class="fas fa-lightbulb text-3xl" style="color: var(--primary-red);"></i>
                             </div>
-                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Uplighting</h4>
-                            <div class="text-center mb-4">
-                                <p class="text-2xl font-bold text-primary-red">Additional $100</p>
-                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
-                                <p class="text-xs text-gray-400 mt-1">$50/hr additional</p>
-                            </div>
-                            <p class="text-sm text-center text-gray-400">Transform your venue with customizable ambient lighting (up to 6 lights)</p>
-                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
-                                LEARN MORE
-                            </button>
+                            <h4 class="text-sm font-bold text-center mb-1 text-chrome-silver">Uplighting</h4>
+                            <p class="text-lg font-bold text-primary-red text-center">+$100</p>
+                            <p class="text-xs text-gray-400 text-center">6 LED lights</p>
                         </div>
 
                         <!-- Foam Pit -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('foampit')">
-                            <div class="text-center mb-4">
-                                <i class="fas fa-cloud text-5xl" style="color: var(--primary-red);"></i>
+                        <div class="bg-black border border-chrome-silver rounded-lg p-3 hover:border-primary-red transition-all cursor-pointer" onclick="showServiceModal('foampit')">
+                            <div class="text-center mb-2">
+                                <i class="fas fa-cloud text-3xl" style="color: var(--primary-red);"></i>
                             </div>
-                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Foam Pit</h4>
-                            <div class="text-center mb-4">
-                                <p class="text-2xl font-bold text-primary-red">$500</p>
-                                <p class="text-sm text-chrome-silver">Per 4-hour event</p>
-                                <p class="text-xs text-gray-400 mt-1">$100/hr additional</p>
-                            </div>
-                            <p class="text-sm text-center text-gray-400">Ultimate party experience with foam machine rental</p>
-                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
-                                LEARN MORE
-                            </button>
+                            <h4 class="text-sm font-bold text-center mb-1 text-chrome-silver">Foam Pit</h4>
+                            <p class="text-lg font-bold text-primary-red text-center">$500</p>
+                            <p class="text-xs text-gray-400 text-center">4hr rental</p>
                         </div>
 
-                        <!-- Wedding Photography -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('photography')">
-                            <div class="text-center mb-4">
-                                <i class="fas fa-camera text-5xl" style="color: var(--primary-red);"></i>
+                        <!-- Photography -->
+                        <div class="bg-black border border-chrome-silver rounded-lg p-3 hover:border-primary-red transition-all cursor-pointer" onclick="showServiceModal('photography')">
+                            <div class="text-center mb-2">
+                                <i class="fas fa-camera text-3xl" style="color: var(--primary-red);"></i>
                             </div>
-                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Wedding Photography</h4>
-                            <div class="text-center mb-4">
-                                <p class="text-xl font-bold text-primary-red">Info on Request</p>
-                                <p class="text-sm text-chrome-silver">Custom packages</p>
-                            </div>
-                            <p class="text-sm text-center text-gray-400">Professional wedding photography to capture your special day</p>
-                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
-                                CONTACT US
-                            </button>
+                            <h4 class="text-sm font-bold text-center mb-1 text-chrome-silver">Photography</h4>
+                            <p class="text-lg font-bold text-primary-red text-center">Quote</p>
+                            <p class="text-xs text-gray-400 text-center">Weddings</p>
                         </div>
 
-                        <!-- Wedding/Event Coordinator -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-6 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/30 cursor-pointer" onclick="showServiceModal('coordinator')">
-                            <div class="text-center mb-4">
-                                <i class="fas fa-clipboard-check text-5xl" style="color: var(--primary-red);"></i>
+                        <!-- Coordinator -->
+                        <div class="bg-black border border-chrome-silver rounded-lg p-3 hover:border-primary-red transition-all cursor-pointer" onclick="showServiceModal('coordinator')">
+                            <div class="text-center mb-2">
+                                <i class="fas fa-clipboard-check text-3xl" style="color: var(--primary-red);"></i>
                             </div>
-                            <h4 class="text-xl font-bold text-center mb-2 text-chrome-silver">Event Coordinator</h4>
-                            <div class="text-center mb-4">
-                                <p class="text-xl font-bold text-primary-red">Info on Request</p>
-                                <p class="text-sm text-chrome-silver">Custom packages</p>
-                            </div>
-                            <p class="text-sm text-center text-gray-400">Professional event coordination for stress-free celebrations</p>
-                            <button class="mt-4 w-full bg-primary-red text-white py-2 rounded font-bold hover:bg-accent-neon transition-all">
-                                CONTACT US
-                            </button>
+                            <h4 class="text-sm font-bold text-center mb-1 text-chrome-silver">Coordinator</h4>
+                            <p class="text-lg font-bold text-primary-red text-center">Quote</p>
+                            <p class="text-xs text-gray-400 text-center">Events</p>
                         </div>
                     </div>
                 </div>
