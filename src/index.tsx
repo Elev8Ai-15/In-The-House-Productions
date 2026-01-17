@@ -2073,11 +2073,39 @@ app.post('/api/payment/confirm', async (c) => {
     
     // Update booking status
     if (bookingId) {
+      // Get booking details for creating time slot
+      const booking = await DB.prepare(`
+        SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time
+        FROM bookings WHERE id = ?
+      `).bind(bookingId).first() as any
+      
       await DB.prepare(`
         UPDATE bookings 
         SET payment_status = 'paid', status = 'confirmed', updated_at = datetime('now')
         WHERE id = ?
       `).bind(bookingId).run()
+      
+      // CRITICAL: Create time slot NOW that payment is confirmed (blocks the calendar)
+      if (booking && !booking.service_type?.startsWith('photobooth')) {
+        // Check if slot already exists
+        const existingSlot = await DB.prepare(`
+          SELECT id FROM booking_time_slots WHERE booking_id = ?
+        `).bind(bookingId).first()
+        
+        if (!existingSlot) {
+          await DB.prepare(`
+            INSERT INTO booking_time_slots (
+              booking_id, service_provider, event_date, start_time, end_time, status
+            ) VALUES (?, ?, ?, ?, ?, 'confirmed')
+          `).bind(
+            bookingId,
+            booking.service_provider,
+            booking.event_date,
+            booking.event_start_time,
+            booking.event_end_time
+          ).run()
+        }
+      }
     }
     
     return c.json({ success: true, message: 'Payment confirmed' })
@@ -2321,6 +2349,12 @@ app.post('/api/webhook/stripe', async (c) => {
         // Update booking status
         const bookingId = session.metadata?.bookingId
         if (bookingId && DB) {
+          // Get booking details for creating time slot
+          const booking = await DB.prepare(`
+            SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time
+            FROM bookings WHERE id = ?
+          `).bind(bookingId).first() as any
+          
           await DB.prepare(`
             UPDATE bookings 
             SET payment_status = 'paid', 
@@ -2328,6 +2362,28 @@ app.post('/api/webhook/stripe', async (c) => {
                 stripe_payment_intent_id = ?
             WHERE id = ?
           `).bind(session.payment_intent as string, bookingId).run()
+          
+          // CRITICAL: Create time slot NOW that payment is confirmed (blocks the calendar)
+          if (booking && !booking.service_type?.startsWith('photobooth')) {
+            // Check if slot already exists
+            const existingSlot = await DB.prepare(`
+              SELECT id FROM booking_time_slots WHERE booking_id = ?
+            `).bind(bookingId).first()
+            
+            if (!existingSlot) {
+              await DB.prepare(`
+                INSERT INTO booking_time_slots (
+                  booking_id, service_provider, event_date, start_time, end_time, status
+                ) VALUES (?, ?, ?, ?, ?, 'confirmed')
+              `).bind(
+                bookingId,
+                booking.service_provider,
+                booking.event_date,
+                booking.event_start_time,
+                booking.event_end_time
+              ).run()
+            }
+          }
           
           console.log('Booking ' + bookingId + ' marked as paid')
         }
@@ -2350,6 +2406,13 @@ app.post('/api/webhook/stripe', async (c) => {
             SET payment_status = 'failed', 
                 status = 'cancelled'
             WHERE id = ?
+          `).bind(failedPayment.metadata.bookingId).run()
+          
+          // Also cancel the time slot
+          await DB.prepare(`
+            UPDATE booking_time_slots 
+            SET status = 'cancelled'
+            WHERE booking_id = ?
           `).bind(failedPayment.metadata.bookingId).run()
         }
         break
@@ -2408,12 +2471,13 @@ app.post('/api/availability/check', async (c) => {
     }
     
     // DJ logic: Check for double-booking possibility
+    // IMPORTANT: Only count 'confirmed' bookings (paid) - pending bookings don't block dates
     const existingBookings = await DB.prepare(`
       SELECT id, event_date, start_time, end_time
       FROM booking_time_slots
       WHERE service_provider = ?
       AND event_date = ?
-      AND status != 'cancelled'
+      AND status = 'confirmed'
       ORDER BY start_time ASC
     `).bind(provider, date).all()
     
@@ -2584,13 +2648,14 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
     }
     
     // For DJs, check individual bookings and time slots
+    // IMPORTANT: Only count 'confirmed' slots (paid bookings) - 'pending' slots don't block dates
     const timeSlots = await DB.prepare(`
       SELECT event_date, COUNT(*) as count, 
              MAX(CASE WHEN start_time >= '11:00' THEN 1 ELSE 0 END) as has_afternoon
       FROM booking_time_slots
       WHERE service_provider = ?
       AND event_date BETWEEN ? AND ?
-      AND status != 'cancelled'
+      AND status = 'confirmed'
       GROUP BY event_date
     `).bind(provider, startDate, endDate).all()
     
@@ -2723,22 +2788,9 @@ app.post('/api/bookings/create', async (c) => {
     
     const bookingId = bookingResult.meta.last_row_id
     
-    // Insert time slot for DJ bookings
-    if (!bookingData.serviceType.startsWith('photobooth')) {
-      await DB.prepare(`
-        INSERT INTO booking_time_slots (
-          booking_id, service_provider, event_date,
-          start_time, end_time, status
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(
-        bookingId,
-        bookingData.serviceProvider,
-        bookingData.eventDate,
-        bookingData.startTime,
-        bookingData.endTime,
-        'confirmed'
-      ).run()
-    }
+    // NOTE: Time slots are NOT created here - they are created only when payment is confirmed
+    // This prevents unpaid bookings from blocking the calendar
+    // Time slots will be created in /api/payment/confirm, /booking-success, and webhook handler
     
     // Insert event details (using production schema column names)
     const eventDetails = bookingData.eventDetails
@@ -5134,9 +5186,37 @@ app.get('/booking-success', async (c) => {
   
   // Update booking if we have a payment intent
   if (paymentIntentId && DB) {
+    // First get the booking details
+    const booking = await DB.prepare(
+      "SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time FROM bookings WHERE stripe_payment_intent_id = ?"
+    ).bind(paymentIntentId).first() as any
+    
+    // Update booking status
     await DB.prepare(
       "UPDATE bookings SET payment_status = 'paid', status = 'confirmed', updated_at = datetime('now') WHERE stripe_payment_intent_id = ?"
     ).bind(paymentIntentId).run()
+    
+    // CRITICAL: Create time slot NOW that payment is confirmed (blocks the calendar)
+    if (booking?.id && !booking.service_type?.startsWith('photobooth')) {
+      // Check if slot already exists
+      const existingSlot = await DB.prepare(
+        "SELECT id FROM booking_time_slots WHERE booking_id = ?"
+      ).bind(booking.id).first()
+      
+      if (!existingSlot) {
+        await DB.prepare(`
+          INSERT INTO booking_time_slots (
+            booking_id, service_provider, event_date, start_time, end_time, status
+          ) VALUES (?, ?, ?, ?, ?, 'confirmed')
+        `).bind(
+          booking.id,
+          booking.service_provider,
+          booking.event_date,
+          booking.event_start_time,
+          booking.event_end_time
+        ).run()
+      }
+    }
   }
   
   return c.html(`
