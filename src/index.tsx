@@ -683,6 +683,23 @@ app.post('/api/setup/stripe-products', async (c) => {
   }
 })
 
+// Get Stripe public configuration (publishable key for frontend)
+app.get('/api/stripe/config', (c) => {
+  const publishableKey = c.env?.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY
+  
+  if (!publishableKey || publishableKey.includes('YOUR_') || publishableKey.includes('not_configured')) {
+    return c.json({ 
+      publishableKey: 'not_configured',
+      message: 'Stripe publishable key not configured. Add STRIPE_PUBLISHABLE_KEY to environment variables.'
+    })
+  }
+  
+  return c.json({ 
+    publishableKey,
+    mode: publishableKey.startsWith('pk_live_') ? 'live' : 'test'
+  })
+})
+
 // Get Stripe products status
 app.get('/api/setup/stripe-status', async (c) => {
   const { STRIPE_SECRET_KEY } = c.env
@@ -5083,9 +5100,24 @@ app.get('/checkout', (c) => {
                     // Production mode - Initialize Stripe
                     clientSecret = data.clientSecret;
                     
-                    // Get Stripe public key (you'll need to provide this)
-                    const stripePublicKey = 'pk_test_YOUR_PUBLIC_KEY'; // Replace with actual key
-                    stripe = Stripe(stripePublicKey);
+                    // Get Stripe publishable key from server config
+                    const configResponse = await fetch('/api/stripe/config');
+                    const stripeConfig = await configResponse.json();
+                    
+                    if (!stripeConfig.publishableKey || stripeConfig.publishableKey === 'not_configured') {
+                        // Stripe publishable key not configured - show helpful message
+                        document.getElementById('payment-element').innerHTML = \`
+                            <div class="text-center py-6">
+                                <i class="fas fa-exclamation-circle text-4xl mb-4" style="color: #FFD700;"></i>
+                                <p class="text-lg font-bold mb-2" style="color: #FFD700;">Payment Setup Required</p>
+                                <p class="text-gray-400 mb-4">Stripe publishable key needs to be configured.</p>
+                                <p class="text-sm text-gray-500">Admin: Add STRIPE_PUBLISHABLE_KEY to environment variables.</p>
+                            </div>
+                        \`;
+                        return;
+                    }
+                    
+                    stripe = Stripe(stripeConfig.publishableKey);
                     
                     elements = stripe.elements({ clientSecret });
                     paymentElement = elements.create('payment');
