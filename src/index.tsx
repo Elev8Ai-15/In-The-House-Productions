@@ -5119,14 +5119,38 @@ app.get('/checkout', (c) => {
                     
                     stripe = Stripe(stripeConfig.publishableKey);
                     
-                    elements = stripe.elements({ clientSecret });
-                    paymentElement = elements.create('payment');
-                    paymentElement.mount('#payment-element');
-                    
-                    paymentElement.on('ready', () => {
-                        document.getElementById('submit-button').disabled = false;
-                        document.getElementById('button-text').textContent = 'Pay ' + data.amountFormatted;
-                    });
+                    try {
+                        elements = stripe.elements({ clientSecret });
+                        paymentElement = elements.create('payment');
+                        paymentElement.mount('#payment-element');
+                        
+                        paymentElement.on('ready', () => {
+                            document.getElementById('submit-button').disabled = false;
+                            document.getElementById('button-text').textContent = 'Pay ' + data.amountFormatted;
+                        });
+                        
+                        paymentElement.on('loaderror', (event) => {
+                            console.error('[STRIPE] Load error:', event.error);
+                            document.getElementById('payment-element').innerHTML = \`
+                                <div class="text-center py-6">
+                                    <i class="fas fa-exclamation-triangle text-4xl mb-4" style="color: #ef4444;"></i>
+                                    <p class="text-lg font-bold mb-2" style="color: #ef4444;">Payment Form Error</p>
+                                    <p class="text-gray-400 mb-2">\${event.error?.message || 'Failed to load payment form'}</p>
+                                    <p class="text-sm text-gray-500">This may be a Stripe configuration issue. Please contact support.</p>
+                                </div>
+                            \`;
+                        });
+                    } catch (stripeError) {
+                        console.error('[STRIPE] Initialization error:', stripeError);
+                        document.getElementById('payment-element').innerHTML = \`
+                            <div class="text-center py-6">
+                                <i class="fas fa-exclamation-triangle text-4xl mb-4" style="color: #ef4444;"></i>
+                                <p class="text-lg font-bold mb-2" style="color: #ef4444;">Stripe Error</p>
+                                <p class="text-gray-400 mb-2">\${stripeError.message || 'Failed to initialize Stripe'}</p>
+                                <p class="text-sm text-gray-500">The publishable key may not match the secret key account.</p>
+                            </div>
+                        \`;
+                    }
                     
                 } catch (error) {
                     console.error('[CHECKOUT] Initialization error:', error);
