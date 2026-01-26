@@ -3049,12 +3049,37 @@ app.get('/', (c) => {
           
           body {
             background: #000;
+            /* Subtle radial gradient for depth - DJ club atmosphere */
+            background-image: 
+              radial-gradient(ellipse at 20% 30%, rgba(227, 30, 36, 0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 80% 70%, rgba(255, 215, 0, 0.05) 0%, transparent 50%),
+              radial-gradient(ellipse at 50% 50%, rgba(192, 192, 192, 0.03) 0%, transparent 70%);
+            background-attachment: fixed;
             color: #fff;
             font-family: 'Arial', sans-serif;
             overflow-x: hidden;
+            /* Smooth scroll for better UX */
+            scroll-behavior: smooth;
           }
           
-          /* Animated Musical Notes Background */
+          /* Image loading optimization */
+          img {
+            content-visibility: auto;
+          }
+          
+          /* Lazy loading fade-in effect */
+          img[loading="lazy"] {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+          }
+          
+          img[loading="lazy"].loaded,
+          img[loading="lazy"]:not([src=""]) {
+            opacity: 1;
+          }
+          
+          /* ===== ENHANCED ANIMATED MUSICAL NOTES BACKGROUND ===== */
+          /* Improved visibility, contrast, and visual impact */
           #musical-background {
             position: fixed;
             top: 0;
@@ -3062,25 +3087,185 @@ app.get('/', (c) => {
             width: 100%;
             height: 100%;
             z-index: 0;
-            opacity: 0.2;
+            pointer-events: none;
+            overflow: hidden;
+            /* Subtle dark gradient overlay for depth */
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.3) 100%);
+          }
+          
+          /* Musical staff lines for authenticity */
+          #musical-background::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+              repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 18%,
+                rgba(192, 192, 192, 0.04) 18%,
+                rgba(192, 192, 192, 0.04) 18.5%,
+                transparent 18.5%,
+                transparent 22%,
+                rgba(192, 192, 192, 0.04) 22%,
+                rgba(192, 192, 192, 0.04) 22.5%,
+                transparent 22.5%,
+                transparent 26%,
+                rgba(192, 192, 192, 0.04) 26%,
+                rgba(192, 192, 192, 0.04) 26.5%,
+                transparent 26.5%,
+                transparent 30%,
+                rgba(192, 192, 192, 0.04) 30%,
+                rgba(192, 192, 192, 0.04) 30.5%,
+                transparent 30.5%,
+                transparent 34%,
+                rgba(192, 192, 192, 0.04) 34%,
+                rgba(192, 192, 192, 0.04) 34.5%,
+                transparent 34.5%
+              );
             pointer-events: none;
           }
           
+          /* Individual musical note styling - ENHANCED */
           .note {
             position: absolute;
-            font-size: 2rem;
+            font-size: clamp(1.8rem, 4vw, 3.5rem);
             animation: floatNote linear infinite;
-            opacity: 0.5;
+            will-change: transform, opacity;
+            filter: drop-shadow(0 0 8px currentColor);
+            text-shadow: 
+              0 0 10px currentColor,
+              0 0 20px currentColor,
+              0 0 30px rgba(227, 30, 36, 0.3);
           }
           
+          /* Note color variations with glow effects */
+          .note.note-red {
+            color: #E31E24;
+            filter: drop-shadow(0 0 12px rgba(227, 30, 36, 0.8));
+          }
+          
+          .note.note-chrome {
+            color: #C0C0C0;
+            filter: drop-shadow(0 0 10px rgba(192, 192, 192, 0.6));
+          }
+          
+          .note.note-gold {
+            color: #FFD700;
+            filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.7));
+          }
+          
+          .note.note-neon {
+            color: #FF0040;
+            filter: drop-shadow(0 0 15px rgba(255, 0, 64, 0.9));
+          }
+          
+          /* Size variations for depth perception */
+          .note.note-large {
+            font-size: clamp(2.5rem, 5vw, 4.5rem);
+            opacity: 0.7;
+          }
+          
+          .note.note-medium {
+            font-size: clamp(1.8rem, 3.5vw, 3rem);
+            opacity: 0.55;
+          }
+          
+          .note.note-small {
+            font-size: clamp(1.2rem, 2.5vw, 2rem);
+            opacity: 0.4;
+          }
+          
+          /* Main float animation - smoother with better visibility */
           @keyframes floatNote {
-            from {
-              left: 100%;
+            0% {
+              transform: translateX(0) translateY(0) rotate(0deg) scale(1);
+              opacity: 0;
+            }
+            5% {
+              opacity: 0.6;
+            }
+            50% {
+              transform: translateX(-50vw) translateY(-20px) rotate(15deg) scale(1.1);
+              opacity: 0.8;
+            }
+            95% {
               opacity: 0.5;
             }
-            to {
-              left: -10%;
+            100% {
+              transform: translateX(-110vw) translateY(10px) rotate(-10deg) scale(0.9);
               opacity: 0;
+            }
+          }
+          
+          /* Alternate animation for variety */
+          @keyframes floatNoteWave {
+            0% {
+              transform: translateX(0) translateY(0) rotate(-5deg);
+              opacity: 0;
+            }
+            10% {
+              opacity: 0.7;
+            }
+            25% {
+              transform: translateX(-25vw) translateY(-30px) rotate(10deg);
+            }
+            50% {
+              transform: translateX(-50vw) translateY(20px) rotate(-5deg);
+              opacity: 0.9;
+            }
+            75% {
+              transform: translateX(-75vw) translateY(-15px) rotate(8deg);
+            }
+            90% {
+              opacity: 0.4;
+            }
+            100% {
+              transform: translateX(-115vw) translateY(0) rotate(-3deg);
+              opacity: 0;
+            }
+          }
+          
+          /* Pulse animation for emphasis notes */
+          @keyframes notePulse {
+            0%, 100% {
+              filter: drop-shadow(0 0 8px currentColor);
+              transform: scale(1);
+            }
+            50% {
+              filter: drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor);
+              transform: scale(1.15);
+            }
+          }
+          
+          .note.note-pulse {
+            animation: floatNote linear infinite, notePulse 2s ease-in-out infinite;
+          }
+          
+          /* Responsive adjustments for mobile */
+          @media (max-width: 768px) {
+            .note {
+              font-size: clamp(1.5rem, 5vw, 2.5rem);
+            }
+            .note.note-large {
+              font-size: clamp(2rem, 6vw, 3rem);
+            }
+            #musical-background::before {
+              opacity: 0.5;
+            }
+          }
+          
+          /* Reduce motion for accessibility */
+          @media (prefers-reduced-motion: reduce) {
+            .note {
+              animation: none;
+              opacity: 0.3;
+            }
+            #musical-background {
+              background: rgba(0,0,0,0.1);
             }
           }
           
@@ -3465,43 +3650,114 @@ app.get('/', (c) => {
         </div>
         
         <script>
-          // Animated Musical Notes Background
-          function createMusicalNote() {
-            const notes = ['♪', '♫', '♬', '♩', '♭', '♮', '♯'];
+          // ===== ENHANCED ANIMATED MUSICAL NOTES BACKGROUND =====
+          // Industry-standard DJ website visual effects
+          
+          const noteSymbols = ['♪', '♫', '♬', '♩', '♭', '♮', '♯', '𝄞', '𝄢'];
+          const colorClasses = ['note-red', 'note-chrome', 'note-gold', 'note-neon'];
+          const sizeClasses = ['note-large', 'note-medium', 'note-small'];
+          const animations = ['floatNote', 'floatNoteWave'];
+          
+          // Staff line positions (percentage from top) - mimics real music staff
+          const staffPositions = [12, 18, 24, 30, 36, 45, 52, 60, 68, 75, 82];
+          
+          function createMusicalNote(options = {}) {
+            const container = document.getElementById('musical-background');
+            if (!container) return;
+            
             const note = document.createElement('div');
-            note.className = 'note';
-            note.textContent = notes[Math.floor(Math.random() * notes.length)];
             
-            // Random color (red or chrome)
-            const colors = ['#E31E24', '#C0C0C0', '#FF0040'];
-            note.style.color = colors[Math.floor(Math.random() * colors.length)];
+            // Random symbol selection
+            const symbol = options.symbol || noteSymbols[Math.floor(Math.random() * noteSymbols.length)];
+            note.textContent = symbol;
             
-            // Random vertical position (on staff lines)
-            const staffPositions = [15, 25, 35, 45, 55];
-            note.style.top = staffPositions[Math.floor(Math.random() * staffPositions.length)] + '%';
+            // Random color class for variety
+            const colorClass = colorClasses[Math.floor(Math.random() * colorClasses.length)];
             
-            // Random duration (20-40 seconds)
-            const duration = 20 + Math.random() * 20;
-            note.style.animationDuration = duration + 's';
+            // Random size for depth perception (larger = closer, smaller = farther)
+            const sizeClass = sizeClasses[Math.floor(Math.random() * sizeClasses.length)];
             
-            // Random delay
-            note.style.animationDelay = Math.random() * 5 + 's';
+            // Occasional pulse effect for emphasis (10% chance)
+            const isPulse = Math.random() < 0.1;
             
-            document.getElementById('musical-background').appendChild(note);
+            note.className = 'note ' + colorClass + ' ' + sizeClass + (isPulse ? ' note-pulse' : '');
             
-            // Remove note after animation
-            setTimeout(() => note.remove(), (duration + 5) * 1000);
+            // Random vertical position along staff lines
+            const topPosition = staffPositions[Math.floor(Math.random() * staffPositions.length)];
+            note.style.top = topPosition + '%';
+            
+            // Start from right side of screen
+            note.style.right = '-5%';
+            
+            // Random animation selection
+            const animName = animations[Math.floor(Math.random() * animations.length)];
+            
+            // Duration based on size (larger = faster for parallax effect)
+            let baseDuration;
+            if (sizeClass === 'note-large') {
+              baseDuration = 15 + Math.random() * 10; // 15-25s (faster)
+            } else if (sizeClass === 'note-medium') {
+              baseDuration = 25 + Math.random() * 15; // 25-40s (medium)
+            } else {
+              baseDuration = 35 + Math.random() * 20; // 35-55s (slower, farther)
+            }
+            
+            note.style.animationName = animName;
+            note.style.animationDuration = baseDuration + 's';
+            note.style.animationDelay = (options.delay || Math.random() * 3) + 's';
+            note.style.animationTimingFunction = 'linear';
+            note.style.animationIterationCount = '1';
+            note.style.animationFillMode = 'forwards';
+            
+            container.appendChild(note);
+            
+            // Remove note after animation completes
+            setTimeout(() => {
+              if (note.parentNode) note.remove();
+            }, (baseDuration + 5) * 1000);
           }
           
-          // Create notes continuously (after page load)
-          requestIdleCallback(() => {
-            setInterval(createMusicalNote, 2000);
-            
-            // Initial batch
-            for (let i = 0; i < 10; i++) {
-              setTimeout(createMusicalNote, i * 500);
+          // Create a batch of notes with staggered timing
+          function createNoteBatch(count, staggerMs) {
+            for (let i = 0; i < count; i++) {
+              setTimeout(() => createMusicalNote({ delay: 0 }), i * staggerMs);
             }
-          }, { timeout: 2000 });
+          }
+          
+          // Initialize background animation
+          function initMusicalBackground() {
+            // Create initial batch for immediate visual impact
+            createNoteBatch(8, 400);
+            
+            // Continuous note generation at varying intervals
+            let noteInterval = setInterval(() => {
+              // Random interval between 1.5-3.5 seconds
+              createMusicalNote();
+            }, 1500 + Math.random() * 2000);
+            
+            // Occasional burst of notes (every 15-25 seconds)
+            setInterval(() => {
+              createNoteBatch(3, 200);
+            }, 15000 + Math.random() * 10000);
+            
+            // Cleanup on page visibility change (save resources)
+            document.addEventListener('visibilitychange', () => {
+              if (document.hidden) {
+                clearInterval(noteInterval);
+              } else {
+                noteInterval = setInterval(() => createMusicalNote(), 2000);
+              }
+            });
+          }
+          
+          // Start animation when page is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+              requestIdleCallback(initMusicalBackground, { timeout: 1000 });
+            });
+          } else {
+            requestIdleCallback(initMusicalBackground, { timeout: 1000 });
+          }
         </script>
     </body>
     </html>
