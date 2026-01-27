@@ -42,6 +42,76 @@ type Bindings = {
   TWILIO_ACCOUNT_SID?: string
   TWILIO_AUTH_TOKEN?: string
   TWILIO_PHONE_NUMBER?: string
+  REFERSION_PUBLIC_KEY?: string
+  REFERSION_SECRET_KEY?: string
+}
+
+// ===== REFERSION AFFILIATE TRACKING INTEGRATION =====
+// Documentation: https://www.refersion.dev/reference/javascript-v4-tracking
+// 
+// How Refersion Affiliate Tracking Works:
+// 1. TRACKING PIXEL: Added to ALL pages to track when visitors arrive via affiliate links
+//    - Reads URL parameters like ?rfsn=12345.abcde or ?ref=affiliate_code
+//    - Stores affiliate attribution in cookies for 30-90 days (configurable in Refersion dashboard)
+// 
+// 2. CONVERSION TRACKING: Added to success/thank-you pages to record sales
+//    - Sends the cart_id (order ID) to Refersion when a purchase is completed
+//    - Refersion matches the cart_id with the affiliate who referred the customer
+//    - Commission is calculated based on your offer settings
+//
+// SETUP REQUIRED:
+// 1. Create a Refersion account at https://www.refersion.com
+// 2. Get your PUBLIC KEY from Account > Settings > API Keys
+// 3. Add REFERSION_PUBLIC_KEY to your Cloudflare environment variables:
+//    - For production: npx wrangler secret put REFERSION_PUBLIC_KEY
+//    - For local dev: Add to .dev.vars file
+// 4. Connect Stripe in Refersion dashboard for automatic commission tracking
+
+// Generates the Refersion tracking pixel for all pages
+// This MUST be on every page to properly track affiliate referrals
+function generateRefersionTrackingScript(publicKey?: string): string {
+  if (!publicKey) {
+    return '<!-- Refersion tracking: Set REFERSION_PUBLIC_KEY environment variable to enable -->';
+  }
+  
+  return `
+    <!-- Refersion Affiliate Tracking Pixel v4 -->
+    <!-- Tracks affiliate referrals from URL parameters: ?rfsn=xxx or ?ref=xxx -->
+    <script>
+      (function(d,t) {
+        var g = d.createElement(t),
+            s = d.getElementsByTagName(t)[0];
+        g.src = "https://cdn.refersion.com/pixel.js";
+        g.setAttribute("data-refersion-pubkey", "${publicKey}");
+        g.async = true;
+        s.parentNode.insertBefore(g, s);
+      }(document, "script"));
+    </script>
+  `;
+}
+
+// Generates conversion tracking code for thank you/confirmation pages
+// This records the sale and attributes it to the referring affiliate
+function generateRefersionConversionScript(publicKey?: string, cartId?: string, cartValue?: number): string {
+  if (!publicKey) {
+    return '<!-- Refersion conversion: Set REFERSION_PUBLIC_KEY environment variable to enable -->';
+  }
+  
+  // cartId should be a unique order identifier (booking ID, Stripe payment intent, etc.)
+  // cartValue is the order total in dollars (optional but recommended for accurate commission calculation)
+  const cartIdValue = cartId || '';
+  const cartValueCode = cartValue ? `_refersion_cart_value = ${cartValue};` : '';
+  
+  return `
+    <!-- Refersion Conversion Tracking -->
+    <!-- Records completed purchase and attributes to referring affiliate -->
+    <script>
+      window._refersion = function() {
+        _refersion_cart = "${cartIdValue}";
+        ${cartValueCode}
+      };
+    </script>
+  `;
 }
 
 // JWT Secret is now imported from auth-middleware.ts
@@ -700,6 +770,66 @@ app.get('/api/stripe/config', (c) => {
   })
 })
 
+// ===== REFERSION AFFILIATE TRACKING API =====
+
+// Get Refersion configuration status
+app.get('/api/refersion/config', (c) => {
+  const publicKey = c.env?.REFERSION_PUBLIC_KEY
+  
+  return c.json({
+    configured: !!publicKey && publicKey.length > 0,
+    hasPublicKey: !!publicKey,
+    trackingEnabled: !!publicKey,
+    setupInstructions: !publicKey ? {
+      step1: 'Create a Refersion account at https://www.refersion.com',
+      step2: 'Get your PUBLIC KEY from Account > Settings > API Keys',
+      step3: 'Add REFERSION_PUBLIC_KEY to Cloudflare environment: npx wrangler secret put REFERSION_PUBLIC_KEY',
+      step4: 'Connect your Stripe account in Refersion dashboard for automatic commission tracking',
+      docsUrl: 'https://www.refersion.dev/reference/javascript-v4-tracking'
+    } : null,
+    features: {
+      visitorTracking: 'Tracks affiliate referrals from URL parameters (?rfsn=xxx or ?ref=xxx)',
+      conversionTracking: 'Records completed bookings on success pages',
+      stripeIntegration: 'Can connect with Stripe for automatic commission calculation'
+    }
+  })
+})
+
+// Refersion webhook endpoint (for receiving notifications from Refersion)
+app.post('/api/refersion/webhook', async (c) => {
+  try {
+    const payload = await c.req.json()
+    
+    // Log webhook for debugging (in production, verify signature)
+    console.log('Refersion webhook received:', JSON.stringify(payload))
+    
+    // Process different webhook event types
+    const eventType = payload.type || payload.event_type
+    
+    switch(eventType) {
+      case 'conversion.created':
+        // A new conversion was recorded
+        console.log('New conversion:', payload.data)
+        break
+      case 'conversion.approved':
+        // Conversion was approved for commission
+        console.log('Conversion approved:', payload.data)
+        break
+      case 'affiliate.created':
+        // New affiliate signed up
+        console.log('New affiliate:', payload.data)
+        break
+      default:
+        console.log('Unknown Refersion event:', eventType)
+    }
+    
+    return c.json({ received: true, eventType })
+  } catch (error: any) {
+    console.error('Refersion webhook error:', error)
+    return c.json({ error: 'Webhook processing failed' }, 500)
+  }
+})
+
 // Get Stripe products status
 app.get('/api/setup/stripe-status', async (c) => {
   const { STRIPE_SECRET_KEY } = c.env
@@ -1205,6 +1335,7 @@ app.get('/api/services/dj', (c) => {
 
 // DJ Profile Editor Route
 app.get('/dj-editor', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -1212,6 +1343,7 @@ app.get('/dj-editor', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>DJ Profile Editor - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="/static/ultra-3d.css" rel="stylesheet">
         <style>
@@ -2998,6 +3130,7 @@ Price: $${booking.totalPrice}
 // Landing Page
 app.get('/', (c) => {
   const baseUrl = 'https://www.inthehouseproductions.com'
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
 
   return c.html(`
     <!DOCTYPE html>
@@ -3017,6 +3150,8 @@ app.get('/', (c) => {
 
         ${generateOrganizationSchema(baseUrl)}
         ${generateLocalBusinessSchema(baseUrl)}
+        
+        ${generateRefersionTrackingScript(refersionKey)}
 
         <!-- Performance: DNS Prefetch & Preconnect -->
         <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
@@ -3767,6 +3902,7 @@ app.get('/', (c) => {
 // DJ Services Page - Profile Selection
 app.get('/dj-services', (c) => {
   const baseUrl = 'https://www.inthehouseproductions.com'
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
 
   return c.html(`
     <!DOCTYPE html>
@@ -3783,6 +3919,8 @@ app.get('/dj-services', (c) => {
           keywords: 'professional DJ, wedding DJ, party DJ, corporate event DJ, DJ services, event entertainment, DJ booking',
           ogImage: `${baseUrl}/static/dj-page-hero-3d.png`
         }, baseUrl)}
+        
+        ${generateRefersionTrackingScript(refersionKey)}
 
         ${generateServiceSchema({
           name: 'Professional DJ Services',
@@ -4173,6 +4311,7 @@ app.get('/dj-services', (c) => {
 
 // Calendar Page - Date Selection
 app.get('/calendar', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -4180,6 +4319,7 @@ app.get('/calendar', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Select Date - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/ultra-3d.css" rel="stylesheet">
@@ -4599,6 +4739,7 @@ app.get('/calendar', (c) => {
 
 // Event Details Form Page
 app.get('/event-details', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -4606,6 +4747,7 @@ app.get('/event-details', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Event Details - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/ultra-3d.css" rel="stylesheet">
@@ -5064,6 +5206,7 @@ app.get('/event-details', (c) => {
 
 // Checkout Page with Stripe Elements
 app.get('/checkout', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -5071,6 +5214,7 @@ app.get('/checkout', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Checkout - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <link href="/static/ultra-3d.css" rel="stylesheet">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -5495,13 +5639,23 @@ app.get('/checkout', (c) => {
 app.get('/booking-success', async (c) => {
   const paymentIntentId = c.req.query('payment_intent')
   const { DB } = c.env
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
+  
+  // Get booking details for Refersion conversion tracking
+  let bookingTotal = 0
+  let bookingId = ''
   
   // Update booking if we have a payment intent
   if (paymentIntentId && DB) {
-    // First get the booking details
+    // First get the booking details including total for Refersion
     const booking = await DB.prepare(
-      "SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time FROM bookings WHERE stripe_payment_intent_id = ?"
+      "SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time, total_amount FROM bookings WHERE stripe_payment_intent_id = ?"
     ).bind(paymentIntentId).first() as any
+    
+    if (booking) {
+      bookingId = booking.id.toString()
+      bookingTotal = booking.total_amount ? booking.total_amount / 100 : 0 // Convert cents to dollars
+    }
     
     // Update booking status
     await DB.prepare(
@@ -5531,6 +5685,9 @@ app.get('/booking-success', async (c) => {
     }
   }
   
+  // Use payment_intent as cart_id for Refersion (unique order identifier)
+  const cartId = paymentIntentId || bookingId
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -5538,6 +5695,8 @@ app.get('/booking-success', async (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Confirmed! - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
+        ${generateRefersionConversionScript(refersionKey, cartId, bookingTotal)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -5628,6 +5787,7 @@ app.get('/booking-success', async (c) => {
 // Photobooth Page
 app.get('/photobooth', (c) => {
   const baseUrl = 'https://www.inthehouseproductions.com'
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
 
   return c.html(`
     <!DOCTYPE html>
@@ -5644,6 +5804,8 @@ app.get('/photobooth', (c) => {
           keywords: 'photobooth rental, photo booth, wedding photobooth, party photobooth, corporate photobooth, instant photo prints, photo booth props',
           ogImage: `${baseUrl}/static/photobooth-page-hero-3d.png`
         }, baseUrl)}
+        
+        ${generateRefersionTrackingScript(refersionKey)}
 
         ${generateServiceSchema({
           name: 'Premium Photobooth Rental Services',
@@ -5960,6 +6122,7 @@ app.get('/checkout/mock-success', async (c) => {
   const sessionId = c.req.query('session_id')
   const bookingId = c.req.query('booking_id')
   const total = c.req.query('total')
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   
   // Mark booking as paid in development mode
   const { DB } = c.env
@@ -5972,6 +6135,9 @@ app.get('/checkout/mock-success', async (c) => {
     `).bind(bookingId).run()
   }
   
+  // Parse total for Refersion conversion tracking
+  const totalValue = total ? parseFloat(total) : 0
+  
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -5979,6 +6145,8 @@ app.get('/checkout/mock-success', async (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Confirmed! - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
+        ${generateRefersionConversionScript(refersionKey, bookingId || sessionId, totalValue)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -6059,6 +6227,7 @@ app.get('/checkout/mock-success', async (c) => {
 
 // Checkout Success Page
 app.get('/checkout/success', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -6066,6 +6235,7 @@ app.get('/checkout/success', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Confirmed! - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -6118,6 +6288,7 @@ app.get('/checkout/success', (c) => {
 
 // Checkout Cancel Page
 app.get('/checkout/cancel', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -6125,6 +6296,7 @@ app.get('/checkout/cancel', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Booking Cancelled - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -6171,13 +6343,15 @@ app.get('/checkout/cancel', (c) => {
 
 // Register Page
 app.get('/register', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(` <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - In The House Productions</title>
-        <link href="/static/ultra-3d.css" rel="stylesheet">
+    ${generateRefersionTrackingScript(refersionKey)}
+    <link href="/static/ultra-3d.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -6258,6 +6432,7 @@ app.get('/register', (c) => {
 // Login Page
 app.get('/login', (c) => {
   const version = Date.now() // Cache busting
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6267,7 +6442,8 @@ app.get('/login', (c) => {
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Login - In The House Productions</title>
-        <link href="/static/ultra-3d.css?v=${version}" rel="stylesheet">
+    ${generateRefersionTrackingScript(refersionKey)}
+    <link href="/static/ultra-3d.css?v=${version}" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -6366,12 +6542,14 @@ app.get('/login', (c) => {
 
 // Contact Us Page
 app.get('/contact', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Us - In The House Productions</title>
+    ${generateRefersionTrackingScript(refersionKey)}
     <link href="/static/ultra-3d.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -6519,12 +6697,14 @@ app.get('/contact', (c) => {
 
 // About Us Page
 app.get('/about', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About Us - In The House Productions</title>
+    ${generateRefersionTrackingScript(refersionKey)}
     <link href="/static/ultra-3d.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -6811,6 +6991,7 @@ app.get('/api/admin/providers', async (c) => {
 
 // Admin Dashboard Page
 app.get('/admin', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
 <!DOCTYPE html>
 <html lang="en">
@@ -6818,6 +6999,7 @@ app.get('/admin', (c) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - In The House Productions</title>
+    ${generateRefersionTrackingScript(refersionKey)}
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -7167,6 +7349,7 @@ app.get('/admin', (c) => {
 
 // Employee Login Page
 app.get('/employee/login', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -7174,6 +7357,7 @@ app.get('/employee/login', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Employee Login - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/ultra-3d.css" rel="stylesheet">
@@ -7328,6 +7512,7 @@ app.get('/employee/login', (c) => {
 
 // Employee Dashboard
 app.get('/employee/dashboard', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -7335,6 +7520,7 @@ app.get('/employee/dashboard', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Employee Dashboard - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <link href="/static/ultra-3d.css" rel="stylesheet">
@@ -7715,6 +7901,7 @@ app.get('/employee/dashboard', (c) => {
 
 // Diagnostic Tool Page
 app.get('/diagnostic', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
     <html lang="en">
@@ -7722,6 +7909,7 @@ app.get('/diagnostic', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Session Diagnostic Tool</title>
+        ${generateRefersionTrackingScript(refersionKey)}
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-black text-white p-4 md:p-8">
