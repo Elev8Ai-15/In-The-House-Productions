@@ -3612,11 +3612,11 @@ app.get('/', (c) => {
                             <h4 class="text-sm font-bold" style="color: #333;">Garden Gate Estate</h4>
                         </a>
 
-                        <!-- Still Creek -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
-                            <div class="text-4xl mb-2">🌊</div>
-                            <h4 class="text-sm font-bold text-chrome-silver">Still Creek</h4>
-                        </div>
+                        <!-- Still Creek Farm -->
+                        <a href="https://www.facebook.com/StillCreekFarm/" target="_blank" rel="noopener noreferrer" class="bg-white border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center block" style="width: 150px; flex-shrink: 0; text-decoration: none;">
+                            <img src="/static/still-creek-logo.png" alt="Still Creek Farm" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 0.5rem; display: block; border-radius: 8px;">
+                            <h4 class="text-sm font-bold" style="color: #333;">Still Creek Farm</h4>
+                        </a>
 
                         <!-- Barn Yard -->
                         <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
