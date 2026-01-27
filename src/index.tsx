@@ -3594,11 +3594,11 @@ app.get('/', (c) => {
                         Professional service and unforgettable celebrations!
                     </p>
                     <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; max-width: 900px; margin: 0 auto; padding: 0 2rem; justify-content: center;">
-                        <!-- DK Farms -->
-                        <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
-                            <div class="text-4xl mb-2">🚜</div>
-                            <h4 class="text-sm font-bold text-chrome-silver">DK Farms</h4>
-                        </div>
+                        <!-- DK Farms & Gardens -->
+                        <a href="https://www.dkfarmsandgardens.com/" target="_blank" rel="noopener noreferrer" class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center block" style="width: 150px; flex-shrink: 0; text-decoration: none;">
+                            <img src="/static/dk-farms-logo.png" alt="DK Farms & Gardens" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 0.5rem; display: block;">
+                            <h4 class="text-sm font-bold text-chrome-silver">DK Farms & Gardens</h4>
+                        </a>
 
                         <!-- The Big Red Barn -->
                         <div class="bg-black border-2 border-chrome-silver rounded-lg p-4 hover:border-primary-red transition-all hover:shadow-lg hover:shadow-red-500/20 text-center" style="width: 150px; flex-shrink: 0;">
