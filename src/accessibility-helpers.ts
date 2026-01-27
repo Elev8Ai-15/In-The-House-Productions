@@ -1,4 +1,5 @@
 // Accessibility (WCAG 2.1 AAA & ADA Compliance) Helpers
+// Only includes functions that are actively used in the application
 
 /**
  * Generate skip navigation links for keyboard users
@@ -42,56 +43,6 @@ export function generateAriaLiveRegion(): string {
       height: 1px;
       overflow: hidden;
     "></div>
-  `
-}
-
-/**
- * Generate accessible form field with proper ARIA attributes
- */
-export function accessibleFormField(config: {
-  id: string
-  label: string
-  type?: string
-  required?: boolean
-  describedBy?: string
-  errorId?: string
-  placeholder?: string
-  ariaLabel?: string
-}): string {
-  const {
-    id,
-    label,
-    type = 'text',
-    required = false,
-    describedBy,
-    errorId,
-    placeholder = '',
-    ariaLabel
-  } = config
-
-  const ariaAttrs = [
-    required ? 'aria-required="true"' : '',
-    describedBy ? `aria-describedby="${describedBy}"` : '',
-    errorId ? `aria-invalid="false" data-error-id="${errorId}"` : '',
-    ariaLabel ? `aria-label="${ariaLabel}"` : ''
-  ].filter(Boolean).join(' ')
-
-  return `
-    <div class="form-group">
-      <label for="${id}" class="form-label" ${required ? 'data-required="true"' : ''}>
-        ${label}${required ? ' <span aria-label="required" class="required-indicator">*</span>' : ''}
-      </label>
-      <input
-        type="${type}"
-        id="${id}"
-        name="${id}"
-        class="form-input"
-        placeholder="${placeholder}"
-        ${required ? 'required' : ''}
-        ${ariaAttrs}
-      />
-      ${errorId ? `<div id="${errorId}" class="error-message" role="alert" aria-live="assertive" style="display: none;"></div>` : ''}
-    </div>
   `
 }
 
@@ -217,116 +168,6 @@ export function generateFocusStyles(): string {
 }
 
 /**
- * Generate accessible button with proper ARIA attributes
- */
-export function accessibleButton(config: {
-  id?: string
-  text: string
-  onClick?: string
-  type?: 'button' | 'submit' | 'reset'
-  ariaLabel?: string
-  ariaDescribedBy?: string
-  disabled?: boolean
-  classes?: string
-}): string {
-  const {
-    id,
-    text,
-    onClick,
-    type = 'button',
-    ariaLabel,
-    ariaDescribedBy,
-    disabled = false,
-    classes = 'btn-red'
-  } = config
-
-  const ariaAttrs = [
-    ariaLabel ? `aria-label="${ariaLabel}"` : '',
-    ariaDescribedBy ? `aria-describedby="${ariaDescribedBy}"` : '',
-    disabled ? 'aria-disabled="true"' : ''
-  ].filter(Boolean).join(' ')
-
-  return `
-    <button
-      ${id ? `id="${id}"` : ''}
-      type="${type}"
-      class="${classes}"
-      ${onClick ? `onclick="${onClick}"` : ''}
-      ${disabled ? 'disabled' : ''}
-      ${ariaAttrs}
-    >
-      ${text}
-    </button>
-  `
-}
-
-/**
- * Generate accessible navigation with ARIA landmarks
- */
-export function generateAccessibleNav(navItems: Array<{href: string, text: string, current?: boolean}>): string {
-  return `
-    <nav id="navigation" aria-label="Main navigation" role="navigation">
-      <ul role="menubar" class="nav-list">
-        ${navItems.map(item => `
-          <li role="none">
-            <a
-              href="${item.href}"
-              role="menuitem"
-              ${item.current ? 'aria-current="page"' : ''}
-              class="nav-link"
-            >
-              ${item.text}
-            </a>
-          </li>
-        `).join('')}
-      </ul>
-    </nav>
-  `
-}
-
-/**
- * Generate accessible modal/dialog
- */
-export function generateAccessibleModal(config: {
-  id: string
-  title: string
-  content: string
-  closeLabel?: string
-}): string {
-  const { id, title, content, closeLabel = 'Close dialog' } = config
-
-  return `
-    <div
-      id="${id}"
-      role="dialog"
-      aria-labelledby="${id}-title"
-      aria-describedby="${id}-description"
-      aria-modal="true"
-      class="modal"
-      style="display: none;"
-    >
-      <div class="modal-overlay" aria-hidden="true"></div>
-      <div class="modal-content">
-        <header class="modal-header">
-          <h2 id="${id}-title" class="modal-title">${title}</h2>
-          <button
-            type="button"
-            class="modal-close"
-            aria-label="${closeLabel}"
-            onclick="closeModal('${id}')"
-          >
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </header>
-        <div id="${id}-description" class="modal-body">
-          ${content}
-        </div>
-      </div>
-    </div>
-  `
-}
-
-/**
  * JavaScript utilities for accessibility
  */
 export function generateAccessibilityJS(): string {
@@ -365,76 +206,6 @@ export function generateAccessibilityJS(): string {
         }
       }
 
-      // Trap focus within modal
-      function trapFocus(element) {
-        const focusableElements = element.querySelectorAll(
-          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
-        );
-        const firstFocusable = focusableElements[0];
-        const lastFocusable = focusableElements[focusableElements.length - 1];
-
-        element.addEventListener('keydown', function(e) {
-          if (e.key === 'Tab') {
-            if (e.shiftKey) {
-              if (document.activeElement === firstFocusable) {
-                lastFocusable.focus();
-                e.preventDefault();
-              }
-            } else {
-              if (document.activeElement === lastFocusable) {
-                firstFocusable.focus();
-                e.preventDefault();
-              }
-            }
-          }
-
-          if (e.key === 'Escape') {
-            closeModal(element.id);
-          }
-        });
-      }
-
-      // Open modal with accessibility
-      function openModalAccessible(modalId) {
-        const modal = document.getElementById(modalId);
-        if (!modal) return;
-
-        modal.style.display = 'flex';
-        modal.setAttribute('aria-hidden', 'false');
-
-        // Store last focused element
-        modal.dataset.lastFocus = document.activeElement.id;
-
-        // Focus first focusable element
-        const firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-        if (firstFocusable) firstFocusable.focus();
-
-        // Trap focus
-        trapFocus(modal);
-
-        // Announce to screen reader
-        const title = modal.querySelector('.modal-title')?.textContent;
-        if (title) announceToScreenReader(\`Dialog opened: \${title}\`);
-      }
-
-      // Close modal with accessibility
-      function closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (!modal) return;
-
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-
-        // Return focus to last focused element
-        const lastFocusId = modal.dataset.lastFocus;
-        if (lastFocusId) {
-          const lastFocus = document.getElementById(lastFocusId);
-          if (lastFocus) lastFocus.focus();
-        }
-
-        announceToScreenReader('Dialog closed');
-      }
-
       // Keyboard navigation enhancements
       document.addEventListener('DOMContentLoaded', function() {
         // Add keyboard support to role="button" elements
@@ -456,76 +227,15 @@ export function generateAccessibilityJS(): string {
         announceToScreenReader(\`Page loaded: \${pageTitle}\`);
 
         // Add focus indication class for keyboard users
-        let isKeyboardUser = false;
         document.addEventListener('keydown', function(e) {
           if (e.key === 'Tab') {
-            isKeyboardUser = true;
             document.body.classList.add('keyboard-user');
           }
         });
         document.addEventListener('mousedown', function() {
-          isKeyboardUser = false;
           document.body.classList.remove('keyboard-user');
         });
       });
-
-      // Form submission with accessibility feedback
-      async function submitFormAccessible(formId, endpoint) {
-        const form = document.getElementById(formId);
-        if (!form) return;
-
-        const submitButton = form.querySelector('[type="submit"]');
-        if (submitButton) {
-          submitButton.disabled = true;
-          submitButton.setAttribute('aria-busy', 'true');
-          announceToScreenReader('Submitting form, please wait');
-        }
-
-        try {
-          // Your form submission logic here
-          announceToScreenReader('Form submitted successfully', true);
-        } catch (error) {
-          announceToScreenReader('Form submission failed: ' + error.message, true);
-        } finally {
-          if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.setAttribute('aria-busy', 'false');
-          }
-        }
-      }
     </script>
-  `
-}
-
-/**
- * WCAG 2.1 color contrast checker (for development)
- */
-export function checkColorContrast(foreground: string, background: string): {
-  ratio: number
-  passAA: boolean
-  passAAA: boolean
-} {
-  // This is a simplified version - in production use a proper color contrast library
-  // For now, return placeholder values since we're using high-contrast red/black theme
-  return {
-    ratio: 15.5, // Black and red on white/black backgrounds have excellent contrast
-    passAA: true,
-    passAAA: true
-  }
-}
-
-/**
- * Generate landmark regions for page structure
- */
-export function generateLandmarkRegions(): string {
-  return `
-    <!-- Landmark regions are added to HTML structure:
-      - <header> or role="banner" for page header
-      - <nav> or role="navigation" for navigation
-      - <main> or role="main" for main content
-      - <aside> or role="complementary" for sidebars
-      - <footer> or role="contentinfo" for footer
-      - <form> or role="search" for search forms
-    -->
   `
 }

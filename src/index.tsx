@@ -24,8 +24,7 @@ import {
 } from './seo-helpers'
 import {
   securityHeaders,
-  rateLimit,
-  validateAndSanitize
+  rateLimit
 } from './security-middleware'
 import {
   generateSkipLinks,
@@ -272,8 +271,6 @@ app.post('/api/auth/login', async (c) => {
       email: user.email,
       role: user.role
     }, secret)
-    
-    console.log('[LOGIN] Token created for user:', user.id)
     
     // Set HTTP-only cookie (works even if localStorage is blocked)
     c.header('Set-Cookie', `authToken=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`)
@@ -800,8 +797,7 @@ app.post('/api/refersion/webhook', async (c) => {
   try {
     const payload = await c.req.json()
     
-    // Log webhook for debugging (in production, verify signature)
-    console.log('Refersion webhook received:', JSON.stringify(payload))
+    // Process webhook (in production, verify signature)
     
     // Process different webhook event types
     const eventType = payload.type || payload.event_type
@@ -809,18 +805,15 @@ app.post('/api/refersion/webhook', async (c) => {
     switch(eventType) {
       case 'conversion.created':
         // A new conversion was recorded
-        console.log('New conversion:', payload.data)
         break
       case 'conversion.approved':
         // Conversion was approved for commission
-        console.log('Conversion approved:', payload.data)
         break
       case 'affiliate.created':
         // New affiliate signed up
-        console.log('New affiliate:', payload.data)
         break
       default:
-        console.log('Unknown Refersion event:', eventType)
+        // Unknown event type - no action needed
     }
     
     return c.json({ received: true, eventType })
@@ -2096,8 +2089,6 @@ app.post('/api/create-payment-intent', async (c) => {
     
     // DEVELOPMENT MODE: Return mock client secret
     if (isDevelopmentMode) {
-      console.log('⚠️  DEVELOPMENT MODE: Using mock payment intent')
-      
       // Create booking in pending state
       let newBookingId = bookingId
       if (!bookingId && eventDetails && DB) {
@@ -2333,7 +2324,6 @@ app.post('/api/checkout/create-session', async (c) => {
     // Verify authentication
     const authHeader = c.req.header('Authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('[CHECKOUT] No auth token')
       return c.json({ error: 'Unauthorized - Please log in' }, 401)
     }
     
@@ -2343,16 +2333,15 @@ app.post('/api/checkout/create-session', async (c) => {
     let payload
     try {
       payload = await verifyToken(token, secret)
-      console.log('[CHECKOUT] Token valid for user:', payload.userId)
+      // Token validated successfully
     } catch (tokenError: any) {
-      console.error('[CHECKOUT] Token verification failed:', tokenError.message)
       return c.json({ error: 'Invalid or expired session. Please log in again.' }, 401)
     }
     
     const { items, bookingId } = await c.req.json()
     const { DB } = c.env
     
-    console.log('[CHECKOUT] Processing checkout for user:', payload.userId, 'booking:', bookingId)
+    // Processing checkout for authenticated user
     
     // Validate items
     if (!items || items.length === 0) {
@@ -2387,7 +2376,7 @@ app.post('/api/checkout/create-session', async (c) => {
     
     // DEVELOPMENT MODE: Mock payment for testing without Stripe
     if (isDevelopmentMode) {
-      console.log('⚠️  DEVELOPMENT MODE: Using mock payment (Stripe not configured)')
+      // Development mode - using mock payment
       const mockSessionId = 'cs_test_mock_' + Date.now()
       const baseUrl = new URL(c.req.url).origin
       
@@ -2493,7 +2482,6 @@ app.post('/api/webhook/stripe', async (c) => {
     switch (event.type) {
       case 'checkout.session.completed':
         const session = event.data.object as Stripe.Checkout.Session
-        console.log('Payment successful:', session.id)
         
         // Update booking status
         const bookingId = session.metadata?.bookingId
@@ -2534,19 +2522,17 @@ app.post('/api/webhook/stripe', async (c) => {
             }
           }
           
-          console.log('Booking ' + bookingId + ' marked as paid')
         }
         
         break
         
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        console.log('Payment intent succeeded:', paymentIntent.id)
+        // Payment intent processed successfully
         break
         
       case 'payment_intent.payment_failed':
         const failedPayment = event.data.object as Stripe.PaymentIntent
-        console.error('Payment failed:', failedPayment.id)
         
         // Mark booking as failed if we can find it
         if (DB && failedPayment.metadata?.bookingId) {
@@ -2567,7 +2553,7 @@ app.post('/api/webhook/stripe', async (c) => {
         break
         
       default:
-        console.log('Unhandled event type: ' + event.type)
+        // Unhandled event type - no action needed
     }
     
     return c.json({ received: true })
@@ -2860,7 +2846,6 @@ app.post('/api/bookings/create', async (c) => {
     // Authenticate user
     const authHeader = c.req.header('Authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('[BOOKING] No auth header')
       return c.json({ error: 'Unauthorized' }, 401)
     }
     
@@ -2870,23 +2855,18 @@ app.post('/api/bookings/create', async (c) => {
     let payload
     try {
       payload = await verifyToken(token, secret)
-      console.log('[BOOKING] Token valid for user:', payload.userId)
     } catch (tokenError: any) {
-      console.error('[BOOKING] Token verification failed:', tokenError.message)
       return c.json({ error: 'Invalid or expired token. Please log in again.' }, 401)
     }
     
     const { DB } = c.env
     const bookingData = await c.req.json()
     
-    console.log('[BOOKING] Creating booking for user:', payload.userId)
-    
     // Validate required fields
     const required = ['serviceType', 'serviceProvider', 'eventDate', 'startTime', 'endTime', 'eventDetails']
     const missing = required.filter(field => !bookingData[field])
     
     if (missing.length > 0) {
-      console.error('[BOOKING] Missing fields:', missing)
       return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
     
@@ -3008,15 +2988,7 @@ async function sendBookingNotifications(env: any, booking: any) {
   const isDevelopmentMode = !RESEND_API_KEY || RESEND_API_KEY.includes('mock')
   
   if (isDevelopmentMode) {
-    console.log('⚠️  DEVELOPMENT MODE: Mock email/SMS (Resend/Twilio not configured)')
-    console.log('📧 Would send email to customer')
-    console.log('📧 Would send email to provider')
-    console.log('📱 Would send SMS to provider')
-    console.log('Booking details:', {
-      bookingId: booking.bookingId,
-      eventDate: booking.eventDate,
-      eventName: booking.eventDetails.eventName
-    })
+    // Development mode - notifications mocked
     return { success: true, developmentMode: true }
   }
   

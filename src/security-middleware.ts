@@ -1,4 +1,5 @@
 // Zero-Trust Security Middleware and Headers
+// Only includes functions that are actively used in the application
 
 import { Context, Next } from 'hono'
 
@@ -12,11 +13,11 @@ export async function securityHeaders(c: Context, next: Next) {
   // Content Security Policy - Zero Trust: Only allow necessary sources
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com",
+    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com https://cdn.refersion.com",
     "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com",
-    "connect-src 'self' https://api.stripe.com",
+    "connect-src 'self' https://api.stripe.com https://cdn.refersion.com",
     "frame-src https://js.stripe.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -59,8 +60,6 @@ export async function securityHeaders(c: Context, next: Next) {
   // Cross-Origin policies
   c.header('Cross-Origin-Opener-Policy', 'same-origin')
   c.header('Cross-Origin-Resource-Policy', 'cross-origin')
-  // Relaxed COEP to allow external resources (fonts, CDNs)
-  // c.header('Cross-Origin-Embedder-Policy', 'require-corp')
 
   // Remove server identification
   c.header('X-Powered-By', '')
@@ -193,150 +192,4 @@ export function rateLimit(maxRequests: number = 100, windowMs: number = 60000, m
       }
     }
   }
-}
-
-/**
- * CSRF token generation and validation
- */
-export async function generateCSRFToken(secret: string, sessionId: string): Promise<string> {
-  const data = `${sessionId}:${Date.now()}`
-  const encoder = new TextEncoder()
-
-  const keyData = encoder.encode(secret)
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(data)
-  )
-
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-
-  return `${btoa(data)}.${encodedSignature}`
-}
-
-/**
- * Validate CSRF token
- */
-export async function validateCSRFToken(token: string, secret: string, maxAge: number = 3600000): Promise<boolean> {
-  try {
-    const [encodedData, encodedSignature] = token.split('.')
-    if (!encodedData || !encodedSignature) return false
-
-    const data = atob(encodedData)
-    const [sessionId, timestamp] = data.split(':')
-
-    // Check token age
-    const tokenAge = Date.now() - parseInt(timestamp)
-    if (tokenAge > maxAge) return false
-
-    // Verify signature
-    const encoder = new TextEncoder()
-    const keyData = encoder.encode(secret)
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    )
-
-    const signature = Uint8Array.from(
-      atob(encodedSignature.replace(/-/g, '+').replace(/_/g, '/') + '=='),
-      c => c.charCodeAt(0)
-    )
-
-    const isValid = await crypto.subtle.verify(
-      'HMAC',
-      key,
-      signature,
-      encoder.encode(data)
-    )
-
-    return isValid
-  } catch {
-    return false
-  }
-}
-
-/**
- * Input validation and sanitization enhancement
- */
-export function validateAndSanitize(input: string, type: 'text' | 'email' | 'phone' | 'url' = 'text'): { valid: boolean; sanitized: string; error?: string } {
-  if (!input || typeof input !== 'string') {
-    return { valid: false, sanitized: '', error: 'Input is required' }
-  }
-
-  // Trim and limit length
-  let sanitized = input.trim().slice(0, 1000)
-
-  // Remove null bytes
-  sanitized = sanitized.replace(/\0/g, '')
-
-  // Type-specific validation
-  switch (type) {
-    case 'email':
-      const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-      if (!emailRegex.test(sanitized)) {
-        return { valid: false, sanitized: '', error: 'Invalid email format' }
-      }
-      sanitized = sanitized.toLowerCase()
-      break
-
-    case 'phone':
-      // Remove all non-numeric characters except + at start
-      const cleaned = sanitized.replace(/[^\d+]/g, '')
-      if (cleaned.length < 10) {
-        return { valid: false, sanitized: '', error: 'Invalid phone number' }
-      }
-      sanitized = cleaned
-      break
-
-    case 'url':
-      try {
-        const url = new URL(sanitized)
-        if (!['http:', 'https:'].includes(url.protocol)) {
-          return { valid: false, sanitized: '', error: 'Invalid URL protocol' }
-        }
-      } catch {
-        return { valid: false, sanitized: '', error: 'Invalid URL format' }
-      }
-      break
-
-    case 'text':
-    default:
-      // XSS prevention
-      sanitized = sanitized
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#x27;')
-        .replace(/\//g, '&#x2F;')
-      break
-  }
-
-  return { valid: true, sanitized }
-}
-
-/**
- * SQL injection prevention helper (additional layer of defense)
- */
-export function detectSQLInjection(input: string): boolean {
-  const sqlPatterns = [
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE)\b)/i,
-    /(--|;|\/\*|\*\/|xp_|sp_)/i,
-    /('|\"|;|--|\/\*|\*\/|@@|@)/
-  ]
-
-  return sqlPatterns.some(pattern => pattern.test(input))
 }
