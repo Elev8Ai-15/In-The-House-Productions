@@ -5655,6 +5655,73 @@ app.get('/booking-success', async (c) => {
         ).run()
       }
     }
+    
+    // AUTO-TRIGGER: Wedding planning form for wedding bookings
+    if (booking?.id) {
+      try {
+        const eventDetail = await DB.prepare(
+          "SELECT event_type FROM event_details WHERE booking_id = ?"
+        ).bind(booking.id).first() as any
+        
+        if (eventDetail?.event_type === 'wedding') {
+          // Create wedding form record
+          const existingForm = await DB.prepare(
+            "SELECT id FROM wedding_event_forms WHERE booking_id = ?"
+          ).bind(booking.id).first()
+          
+          if (!existingForm) {
+            await DB.prepare(
+              "INSERT INTO wedding_event_forms (booking_id, user_id, form_status) VALUES (?, ?, 'pending')"
+            ).bind(booking.id, booking.user_id).run()
+          }
+          
+          // Send wedding form email
+          const user = await DB.prepare(
+            "SELECT full_name, email FROM users WHERE id = ?"
+          ).bind(booking.user_id).first()
+          
+          if (user) {
+            const baseUrl = new URL(c.req.url).origin
+            const formUrl = `${baseUrl}/wedding-planner/${booking.id}`
+            await sendWeddingFormEmail(c.env, booking, user, formUrl)
+          }
+        }
+      } catch (wfErr) {
+        console.error('Wedding form trigger error:', wfErr)
+      }
+      
+      // AUTO-GENERATE: Invoice for this booking
+      try {
+        const existingInvoice = await DB.prepare(
+          "SELECT id FROM invoices WHERE booking_id = ?"
+        ).bind(booking.id).first()
+        
+        if (!existingInvoice) {
+          const invoiceNumber = await generateInvoiceNumber(DB)
+          const total = booking.total_amount ? booking.total_amount / 100 : (booking.total_price || 0)
+          const issueDate = new Date().toISOString().split('T')[0]
+          const dueDate = issueDate // Already paid
+          
+          const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+          const lineItems = [{ service: providerName, description: `Event on ${booking.event_date}`, qty: 1, rate: total, amount: total }]
+          
+          await DB.prepare(`
+            INSERT INTO invoices (
+              booking_id, user_id, invoice_number, status,
+              subtotal, total, amount_paid, amount_due,
+              line_items_json, issue_date, due_date, paid_date,
+              auto_reminders, terms
+            ) VALUES (?, ?, ?, 'paid', ?, ?, ?, 0, ?, ?, ?, ?, 0, 'Payment received. Thank you!')
+          `).bind(
+            booking.id, booking.user_id, invoiceNumber,
+            total, total, total,
+            JSON.stringify(lineItems), issueDate, dueDate, issueDate
+          ).run()
+        }
+      } catch (invErr) {
+        console.error('Auto-invoice error:', invErr)
+      }
+    }
   }
   
   // Use payment_intent as cart_id for Refersion (unique order identifier)
@@ -5714,11 +5781,26 @@ app.get('/booking-success', async (c) => {
                 <h3 class="text-lg font-bold mb-4" style="color: #FFD700;">What's Next?</h3>
                 <ul class="space-y-3 text-gray-300">
                     <li><i class="fas fa-envelope text-green-500 mr-2"></i> Confirmation email sent to your inbox</li>
+                    <li><i class="fas fa-file-invoice text-green-500 mr-2"></i> Invoice automatically generated</li>
                     <li><i class="fas fa-calendar-check text-green-500 mr-2"></i> Your event date is reserved</li>
                     <li><i class="fas fa-user-tie text-green-500 mr-2"></i> Your DJ/Photobooth team has been notified</li>
                     <li><i class="fas fa-phone text-green-500 mr-2"></i> We'll contact you 1 week before your event</li>
                 </ul>
             </div>
+            
+            <!-- Wedding Form CTA (shown dynamically for wedding bookings) -->
+            <div id="weddingFormCta" style="display:none;" class="mb-6">
+              <div style="background: linear-gradient(135deg, rgba(227,30,36,0.15), rgba(255,215,0,0.1)); border: 2px solid #FFD700; border-radius: 15px; padding: 1.5rem; text-align: center;">
+                <i class="fas fa-ring text-4xl mb-3" style="color: #FFD700;"></i>
+                <h3 class="text-xl font-bold mb-2" style="color: #FFD700;">Complete Your Wedding Planning Form!</h3>
+                <p class="text-gray-300 mb-4">Help your DJ prepare the perfect wedding. Tell us about your ceremony, songs, bridal party, and more.</p>
+                <a id="weddingFormLink" href="#" class="inline-block px-8 py-3 font-bold rounded-lg transition-colors" style="background: linear-gradient(135deg, #E31E24, #FF0040); color: white; text-decoration: none; border: 2px solid #C0C0C0; letter-spacing: 1px;">
+                    <i class="fas fa-clipboard-list mr-2"></i>START WEDDING FORM
+                </a>
+                <p class="text-gray-500 text-xs mt-3">Also sent to your email. You can save progress and come back anytime.</p>
+              </div>
+            </div>
+            
             <div class="flex gap-4 justify-center">
                 <a href="/" class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors">
                     <i class="fas fa-home mr-2"></i>Return Home
@@ -5746,6 +5828,20 @@ app.get('/booking-success', async (c) => {
             var style = document.createElement('style');
             style.textContent = '@keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }';
             document.head.appendChild(style);
+            
+            // Check if this was a wedding booking - show wedding form CTA
+            try {
+              const storedBooking = localStorage.getItem('bookingData');
+              if (storedBooking) {
+                const bd = JSON.parse(storedBooking);
+                const isWedding = bd.eventDetails?.eventType === 'wedding' || bd.eventType === 'wedding';
+                const bId = bd.bookingId || '${bookingId}';
+                if (isWedding && bId) {
+                  document.getElementById('weddingFormCta').style.display = 'block';
+                  document.getElementById('weddingFormLink').href = '/wedding-planner/' + bId;
+                }
+              }
+            } catch(e) {}
             
             // Clear localStorage booking data
             localStorage.removeItem('bookingData');
@@ -7138,6 +7234,7 @@ app.get('/admin', (c) => {
         </div>
 
         <!-- Bookings Table -->
+        <div id="tabContentBookings">
         <div class="admin-card rounded-lg p-6 mb-8">
             <h2 class="text-2xl font-bold text-white mb-6">
                 <i class="fas fa-list text-primary-red mr-2"></i>All Bookings
@@ -7169,8 +7266,76 @@ app.get('/admin', (c) => {
                 </table>
             </div>
         </div>
+        </div>
 
-        <!-- Providers Section -->
+        <!-- Tab Navigation -->
+        <div class="admin-card rounded-lg p-4 mb-8" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn-primary" onclick="showTab('bookings')" id="tabBookings" style="opacity: 1;">
+                <i class="fas fa-list mr-2"></i>Bookings
+            </button>
+            <button class="btn-primary" onclick="showTab('wedding-forms')" id="tabWeddingForms" style="opacity: 0.6;">
+                <i class="fas fa-ring mr-2"></i>Wedding Forms
+            </button>
+            <button class="btn-primary" onclick="showTab('invoices')" id="tabInvoices" style="opacity: 0.6;">
+                <i class="fas fa-file-invoice-dollar mr-2"></i>Invoices
+            </button>
+            <button class="btn-primary" onclick="showTab('providers')" id="tabProviders" style="opacity: 0.6;">
+                <i class="fas fa-user-friends mr-2"></i>Providers
+            </button>
+        </div>
+
+        <!-- WEDDING FORMS TAB -->
+        <div id="tabContentWedding-forms" class="hidden">
+          <div class="admin-card rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-ring text-primary-red mr-2"></i>Wedding Planning Forms
+            </h2>
+            <div id="weddingFormsLoading" class="text-center text-white py-8">
+                <i class="fas fa-spinner loading text-4xl text-primary-gold mb-3"></i>
+                <p>Loading wedding forms...</p>
+            </div>
+            <div id="weddingFormsTable" class="booking-table hidden">
+                <table>
+                    <thead><tr><th>Booking</th><th>Couple</th><th>Event Date</th><th>Status</th><th>Progress</th><th>Actions</th></tr></thead>
+                    <tbody id="weddingFormsBody"></tbody>
+                </table>
+            </div>
+          </div>
+          
+          <!-- Wedding Form Detail Modal -->
+          <div id="weddingFormDetail" class="admin-card rounded-lg p-6 hidden">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-2xl font-bold text-white"><i class="fas fa-ring text-primary-red mr-2"></i>Wedding Form Details</h2>
+              <button onclick="document.getElementById('weddingFormDetail').classList.add('hidden')" class="btn-primary" style="padding: 6px 16px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="weddingFormDetailContent"></div>
+          </div>
+        </div>
+
+        <!-- INVOICES TAB -->
+        <div id="tabContentInvoices" class="hidden">
+          <div class="admin-card rounded-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-2xl font-bold text-white">
+                  <i class="fas fa-file-invoice-dollar text-primary-red mr-2"></i>Invoices
+              </h2>
+              <button onclick="autoGenerateInvoices()" class="btn-primary"><i class="fas fa-magic mr-2"></i>Auto-Generate Missing</button>
+            </div>
+            <div id="invoicesLoading" class="text-center text-white py-8">
+                <i class="fas fa-spinner loading text-4xl text-primary-gold mb-3"></i>
+                <p>Loading invoices...</p>
+            </div>
+            <div id="invoicesTable" class="booking-table hidden">
+                <table>
+                    <thead><tr><th>Invoice #</th><th>Client</th><th>Event Date</th><th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="invoicesBody"></tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROVIDERS TAB -->
+        <div id="tabContentProviders" class="hidden">
         <div class="admin-card rounded-lg p-6">
             <h2 class="text-2xl font-bold text-white mb-6">
                 <i class="fas fa-user-friends text-primary-red mr-2"></i>Providers
@@ -7184,6 +7349,7 @@ app.get('/admin', (c) => {
             <div id="providersGrid" class="grid md:grid-cols-3 gap-4 hidden">
                 <!-- Dynamic content -->
             </div>
+        </div>
         </div>
     </div>
 
@@ -7305,11 +7471,227 @@ app.get('/admin', (c) => {
             }
         }
 
+        // Tab system
+        let activeTab = 'bookings';
+        function showTab(tab) {
+            // Hide all tab content
+            document.querySelectorAll('[id^="tabContent"]').forEach(el => el.classList.add('hidden'));
+            // Reset all tab buttons
+            document.querySelectorAll('[id^="tab"]').forEach(el => { if (el.id.startsWith('tab') && !el.id.startsWith('tabContent')) el.style.opacity = '0.6'; });
+            // Show selected tab
+            const contentId = 'tabContent' + tab.charAt(0).toUpperCase() + tab.slice(1);
+            const contentEl = document.getElementById(contentId);
+            if (contentEl) contentEl.classList.remove('hidden');
+            // Also keep bookings table visible when on bookings tab
+            if (tab === 'bookings') {
+              document.getElementById('tabContentBookings').classList.remove('hidden');
+            }
+            // Highlight active tab button
+            const tabNames = {'bookings':'tabBookings','wedding-forms':'tabWeddingForms','invoices':'tabInvoices','providers':'tabProviders'};
+            if (tabNames[tab]) document.getElementById(tabNames[tab]).style.opacity = '1';
+            activeTab = tab;
+            // Load tab data
+            if (tab === 'wedding-forms') loadWeddingForms();
+            if (tab === 'invoices') loadInvoices();
+            if (tab === 'providers') loadProviders();
+        }
+        
+        // Load wedding forms
+        async function loadWeddingForms() {
+            try {
+                const response = await axios.get('/api/admin/wedding-forms');
+                if (response.data.success) {
+                    const forms = response.data.forms;
+                    const tbody = document.getElementById('weddingFormsBody');
+                    
+                    if (forms.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">No wedding forms yet. Forms are auto-created when clients book weddings.</td></tr>';
+                    } else {
+                        tbody.innerHTML = forms.map(form => {
+                            const statusColors = {pending:'#FFA500',in_progress:'#3B82F6',completed:'#22c55e',reviewed:'#8B5CF6'};
+                            const couple = [form.partner1_full_name, form.partner2_full_name].filter(Boolean).join(' & ') || form.client_name;
+                            return \`<tr>
+                                <td>#\${form.booking_id}</td>
+                                <td>\${couple}<br><small class="text-gray-400">\${form.client_email}</small></td>
+                                <td>\${form.event_date ? new Date(form.event_date).toLocaleDateString() : 'N/A'}</td>
+                                <td><span class="status-badge" style="background:\${statusColors[form.form_status] || '#666'}">\${form.form_status}</span></td>
+                                <td>\${form.completed_at ? '100%' : (form.last_saved_section ? Math.round((parseInt(form.last_saved_section)/10)*100) + '%' : '0%')}</td>
+                                <td>
+                                    <button onclick="viewWeddingForm(\${form.booking_id})" class="btn-primary" style="padding:4px 12px;font-size:12px;"><i class="fas fa-eye mr-1"></i>View</button>
+                                    <button onclick="sendWeddingFormEmail(\${form.booking_id})" class="btn-primary" style="padding:4px 12px;font-size:12px;background:#3B82F6;"><i class="fas fa-envelope mr-1"></i>Send Email</button>
+                                </td>
+                            </tr>\`;
+                        }).join('');
+                    }
+                    
+                    document.getElementById('weddingFormsLoading').classList.add('hidden');
+                    document.getElementById('weddingFormsTable').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to load wedding forms:', error);
+                document.getElementById('weddingFormsLoading').innerHTML = '<p class="text-red-500">Failed to load</p>';
+            }
+        }
+        
+        async function viewWeddingForm(bookingId) {
+            try {
+                const resp = await axios.get('/api/wedding-form/' + bookingId);
+                if (resp.data.success && resp.data.form) {
+                    const f = resp.data.form;
+                    const detail = document.getElementById('weddingFormDetail');
+                    const content = document.getElementById('weddingFormDetailContent');
+                    
+                    let bridalParty = [], vipFamily = [], mustPlay = [], doNotPlay = [], toasts = [];
+                    try { bridalParty = JSON.parse(f.bridal_party_json || '[]'); } catch(e){}
+                    try { vipFamily = JSON.parse(f.vip_family_json || '[]'); } catch(e){}
+                    try { mustPlay = JSON.parse(f.must_play_songs || '[]'); } catch(e){}
+                    try { doNotPlay = JSON.parse(f.do_not_play_songs || '[]'); } catch(e){}
+                    try { toasts = JSON.parse(f.toast_speakers_json || '[]'); } catch(e){}
+                    
+                    content.innerHTML = \`
+                      <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                          <h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-heart mr-2"></i>Couple</h3>
+                          <p class="text-gray-300"><strong>Partner 1:</strong> \${f.partner1_full_name || 'N/A'} | \${f.partner1_phone || ''} | \${f.partner1_email || ''}</p>
+                          <p class="text-gray-300"><strong>Partner 2:</strong> \${f.partner2_full_name || 'N/A'} | \${f.partner2_phone || ''} | \${f.partner2_email || ''}</p>
+                          <p class="text-gray-300"><strong>Hashtag:</strong> \${f.couple_hashtag || 'N/A'}</p>
+                          \${f.how_they_met ? '<p class="text-gray-400 mt-2"><strong>How they met:</strong> ' + f.how_they_met + '</p>' : ''}
+                        </div>
+                        <div>
+                          <h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-church mr-2"></i>Ceremony</h3>
+                          <p class="text-gray-300"><strong>Location:</strong> \${f.ceremony_location || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Time:</strong> \${f.ceremony_time || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Officiant:</strong> \${f.officiant_name || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Processional:</strong> \${f.processional_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Recessional:</strong> \${f.recessional_song || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div class="grid md:grid-cols-2 gap-6 mt-6">
+                        <div>
+                          <h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-music mr-2"></i>Key Songs</h3>
+                          <p class="text-gray-300"><strong>Grand Entrance:</strong> \${f.grand_entrance_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>First Dance:</strong> \${f.first_dance_song || 'N/A'} \${f.first_dance_style ? '(' + f.first_dance_style + ')' : ''}</p>
+                          <p class="text-gray-300"><strong>Father/Daughter:</strong> \${f.father_daughter_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Mother/Son:</strong> \${f.mother_son_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Cake Cutting:</strong> \${f.cake_cutting_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Last Dance:</strong> \${f.last_dance_song || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Send-Off:</strong> \${f.send_off_song || 'N/A'} \${f.send_off_style ? '(' + f.send_off_style + ')' : ''}</p>
+                        </div>
+                        <div>
+                          <h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-cocktail mr-2"></i>Cocktail & Reception</h3>
+                          <p class="text-gray-300"><strong>Cocktail:</strong> \${f.cocktail_start_time || 'N/A'} - \${f.cocktail_end_time || 'N/A'} | Vibe: \${f.cocktail_music_vibe || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Reception Start:</strong> \${f.reception_start_time || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Entrance Style:</strong> \${f.grand_entrance_style || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Special:</strong> \${f.bouquet_toss ? 'Bouquet Toss' : ''} \${f.garter_toss ? '| Garter Toss' : ''} \${f.money_dance ? '| Money Dance' : ''} \${f.anniversary_dance ? '| Anniversary Dance' : ''}</p>
+                          <p class="text-gray-300"><strong>Energy Level:</strong> \${f.dance_floor_energy || 'N/A'}</p>
+                          <p class="text-gray-300"><strong>Clean Only:</strong> \${f.clean_music_only ? 'Yes' : 'No'}</p>
+                        </div>
+                      </div>
+                      
+                      \${bridalParty.length > 0 ? '<div class="mt-6"><h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-users mr-2"></i>Bridal Party (' + bridalParty.length + ')</h3><div class="grid md:grid-cols-2 gap-2">' + bridalParty.map(m => '<p class="text-gray-300"><strong>' + (m.role||'') + ':</strong> ' + (m.name||'') + (m.partner_name ? ' & ' + m.partner_name : '') + '</p>').join('') + '</div>' + (f.flower_girl_name ? '<p class="text-gray-300 mt-2"><strong>Flower Girl:</strong> ' + f.flower_girl_name + '</p>' : '') + (f.ring_bearer_name ? '<p class="text-gray-300"><strong>Ring Bearer:</strong> ' + f.ring_bearer_name + '</p>' : '') + '</div>' : ''}
+                      
+                      \${mustPlay.length > 0 ? '<div class="mt-6"><h3 style="color:#22c55e" class="text-lg font-bold mb-3"><i class="fas fa-check-circle mr-2"></i>Must-Play (' + mustPlay.length + ')</h3>' + mustPlay.map(s => '<p class="text-gray-300">"' + s.song + '" - ' + s.artist + (s.moment ? ' <span style="color:#FFD700">(' + s.moment + ')</span>' : '') + '</p>').join('') + '</div>' : ''}
+                      
+                      \${doNotPlay.length > 0 ? '<div class="mt-6"><h3 style="color:#E31E24" class="text-lg font-bold mb-3"><i class="fas fa-ban mr-2"></i>Do NOT Play (' + doNotPlay.length + ')</h3>' + doNotPlay.map(s => '<p class="text-gray-300">"' + s.song + '" - ' + s.artist + (s.reason ? ' <span style="color:#888">(' + s.reason + ')</span>' : '') + '</p>').join('') + '</div>' : ''}
+                      
+                      \${toasts.length > 0 ? '<div class="mt-6"><h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-glass-cheers mr-2"></i>Toast Speakers</h3>' + toasts.map((s,i) => '<p class="text-gray-300">#' + (i+1) + ': ' + s.name + ' (' + (s.role||'') + ')</p>').join('') + '</div>' : ''}
+                      
+                      \${f.memorial_tribute ? '<div class="mt-6" style="background:rgba(255,215,0,0.1);border:1px solid #FFD700;border-radius:10px;padding:1rem;"><h3 style="color:#FFD700" class="font-bold mb-2"><i class="fas fa-candle-holder mr-2"></i>Memorial Tribute</h3><p class="text-gray-300">' + f.memorial_tribute + '</p>' + (f.memorial_tribute_details ? '<p class="text-gray-400 text-sm mt-1">' + f.memorial_tribute_details + '</p>' : '') + '</div>' : ''}
+                      
+                      <div class="mt-6">
+                        <h3 style="color:#FFD700" class="text-lg font-bold mb-3"><i class="fas fa-cog mr-2"></i>Logistics</h3>
+                        <p class="text-gray-300"><strong>Setup Time:</strong> \${f.dj_setup_time || 'N/A'} | <strong>Indoor/Outdoor:</strong> \${f.indoor_outdoor || 'N/A'} | <strong>Dance Floor:</strong> \${f.dance_floor_size || 'N/A'}</p>
+                        <p class="text-gray-300"><strong>DJ Placement:</strong> \${f.dj_placement || 'N/A'} | <strong>Power:</strong> \${f.power_location || 'N/A'}</p>
+                        \${f.rain_plan ? '<p class="text-gray-300"><strong>Rain Plan:</strong> ' + f.rain_plan + '</p>' : ''}
+                        <p class="text-gray-300"><strong>Add-ons:</strong> \${f.wants_uplighting ? 'Uplighting (' + (f.uplighting_color||'') + ')' : ''} \${f.wants_karaoke ? '| Karaoke' : ''} \${f.wants_fog_machine ? '| Fog Machine' : ''} \${f.wants_photobooth ? '| Photobooth' : ''}</p>
+                      </div>
+                    \`;
+                    
+                    detail.classList.remove('hidden');
+                    detail.scrollIntoView({ behavior: 'smooth' });
+                }
+            } catch (error) {
+                console.error('Failed to load wedding form:', error);
+            }
+        }
+        
+        async function sendWeddingFormEmail(bookingId) {
+            try {
+                await axios.post('/api/wedding-form/' + bookingId + '/send-email');
+                alert('Wedding form email sent!');
+            } catch (error) {
+                alert('Failed to send email');
+            }
+        }
+        
+        // Load invoices
+        async function loadInvoices() {
+            try {
+                const response = await axios.get('/api/admin/invoices');
+                if (response.data.success) {
+                    const invoices = response.data.invoices;
+                    const tbody = document.getElementById('invoicesBody');
+                    
+                    if (invoices.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400">No invoices yet. Click "Auto-Generate Missing" to create invoices for existing bookings.</td></tr>';
+                    } else {
+                        tbody.innerHTML = invoices.map(inv => {
+                            const statusColors = {draft:'#666',sent:'#3B82F6',viewed:'#8B5CF6',paid:'#22c55e',overdue:'#E31E24',cancelled:'#666',refunded:'#FFA500'};
+                            return \`<tr>
+                                <td style="font-weight:bold;color:#FFD700;">\${inv.invoice_number}</td>
+                                <td>\${inv.client_name}<br><small class="text-gray-400">\${inv.client_email}</small></td>
+                                <td>\${inv.event_date ? new Date(inv.event_date).toLocaleDateString() : 'N/A'}</td>
+                                <td class="font-bold">$\${(inv.total || 0).toFixed(2)}</td>
+                                <td style="color:#22c55e">$\${(inv.amount_paid || 0).toFixed(2)}</td>
+                                <td style="color:\${inv.amount_due > 0 ? '#E31E24' : '#22c55e'}">$\${(inv.amount_due || 0).toFixed(2)}</td>
+                                <td><span class="status-badge" style="background:\${statusColors[inv.status] || '#666'}">\${inv.status}</span></td>
+                                <td>
+                                    \${inv.status !== 'paid' && inv.amount_due > 0 ? '<button onclick="markInvoicePaid(' + inv.id + ')" class="btn-primary" style="padding:4px 10px;font-size:11px;background:#22c55e;margin-right:4px;"><i class="fas fa-check mr-1"></i>Mark Paid</button>' : ''}
+                                    \${inv.status !== 'paid' && inv.amount_due > 0 ? '<button onclick="sendInvoiceReminder(' + inv.id + ')" class="btn-primary" style="padding:4px 10px;font-size:11px;background:#3B82F6;"><i class="fas fa-bell mr-1"></i>Remind</button>' : ''}
+                                </td>
+                            </tr>\`;
+                        }).join('');
+                    }
+                    
+                    document.getElementById('invoicesLoading').classList.add('hidden');
+                    document.getElementById('invoicesTable').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to load invoices:', error);
+            }
+        }
+        
+        async function markInvoicePaid(invoiceId) {
+            try {
+                await axios.post('/api/invoices/' + invoiceId + '/status', { status: 'paid' });
+                loadInvoices();
+                loadStats();
+            } catch (error) { alert('Failed to update'); }
+        }
+        
+        async function sendInvoiceReminder(invoiceId) {
+            try {
+                await axios.post('/api/invoices/' + invoiceId + '/send-reminder');
+                alert('Reminder sent!');
+                loadInvoices();
+            } catch (error) { alert('Failed to send reminder'); }
+        }
+        
+        async function autoGenerateInvoices() {
+            try {
+                const resp = await axios.post('/api/invoices/auto-generate');
+                if (resp.data.success) {
+                    alert('Generated ' + resp.data.generated + ' invoice(s): ' + (resp.data.invoiceNumbers || []).join(', '));
+                    loadInvoices();
+                }
+            } catch (error) { alert('Failed to auto-generate'); }
+        }
+
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
             loadStats()
             loadBookings()
-            loadProviders()
         })
     </script>
 </body>
@@ -8042,6 +8424,1522 @@ app.get('/diagnostic', (c) => {
           
           // Auto-run on load
           window.addEventListener('DOMContentLoaded', runDiagnostics);
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+// ===== WEDDING EVENT PLANNING FORM SYSTEM =====
+
+// Helper: Generate next invoice number
+async function generateInvoiceNumber(DB: D1Database): Promise<string> {
+  const year = new Date().getFullYear()
+  const lastInvoice = await DB.prepare(
+    "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY id DESC LIMIT 1"
+  ).bind(`INV-${year}-%`).first() as any
+  
+  let nextNum = 1
+  if (lastInvoice?.invoice_number) {
+    const parts = lastInvoice.invoice_number.split('-')
+    nextNum = parseInt(parts[2]) + 1
+  }
+  return `INV-${year}-${String(nextNum).padStart(4, '0')}`
+}
+
+// Helper: Send wedding form email to client
+async function sendWeddingFormEmail(env: any, booking: any, user: any, formUrl: string) {
+  const RESEND_API_KEY = env.RESEND_API_KEY
+  if (!RESEND_API_KEY || RESEND_API_KEY.includes('mock')) {
+    console.log('[DEV] Would send wedding form email to:', user.email)
+    return { success: true, developmentMode: true }
+  }
+  
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: user.email,
+        subject: `Wedding Planning Form - Complete Your Event Details!`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #ffffff; padding: 30px; border-radius: 15px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #E31E24; font-size: 28px; margin: 0;">In The House Productions</h1>
+              <p style="color: #C0C0C0; font-size: 14px;">Wedding Planning Questionnaire</p>
+            </div>
+            
+            <p style="font-size: 18px; color: #FFD700;">Congratulations, ${user.full_name}!</p>
+            
+            <p style="color: #C0C0C0; line-height: 1.8;">
+              Your wedding booking has been confirmed! To make your big day absolutely perfect, 
+              please complete our wedding planning form. This helps your DJ prepare everything 
+              exactly the way you want it.
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${formUrl}" style="display: inline-block; background: linear-gradient(135deg, #E31E24, #FF0040); color: white; padding: 15px 40px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 18px; letter-spacing: 1px;">
+                COMPLETE YOUR WEDDING FORM
+              </a>
+            </div>
+            
+            <div style="background: rgba(227, 30, 36, 0.1); border: 1px solid #E31E24; border-radius: 10px; padding: 20px; margin: 20px 0;">
+              <h3 style="color: #FFD700; margin-top: 0;">What we'll ask about:</h3>
+              <ul style="color: #C0C0C0; line-height: 2;">
+                <li>Ceremony & reception music choices</li>
+                <li>First dance, parent dances & special songs</li>
+                <li>Bridal party introductions</li>
+                <li>Timeline & reception flow</li>
+                <li>Must-play & do-not-play lists</li>
+                <li>Special moments & announcements</li>
+              </ul>
+            </div>
+            
+            <p style="color: #888; font-size: 13px;">
+              You can save your progress and come back to finish later. 
+              Your DJ will review the completed form and follow up with you.
+            </p>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333;">
+              <p style="color: #666; font-size: 12px;">
+                In The House Productions | (816) 217-1094 | www.inthehouseproductions.com
+              </p>
+            </div>
+          </div>
+        `
+      })
+    })
+    
+    return { success: response.ok }
+  } catch (err) {
+    console.error('Failed to send wedding form email:', err)
+    return { success: false }
+  }
+}
+
+// Helper: Send completed wedding form summary email
+async function sendWeddingFormCompletedEmail(env: any, formData: any, booking: any, user: any) {
+  const RESEND_API_KEY = env.RESEND_API_KEY
+  if (!RESEND_API_KEY || RESEND_API_KEY.includes('mock')) {
+    console.log('[DEV] Would send completed wedding form email')
+    return { success: true, developmentMode: true }
+  }
+  
+  const bridalParty = formData.bridal_party_json ? JSON.parse(formData.bridal_party_json) : []
+  const vipFamily = formData.vip_family_json ? JSON.parse(formData.vip_family_json) : []
+  const mustPlay = formData.must_play_songs ? JSON.parse(formData.must_play_songs) : []
+  const doNotPlay = formData.do_not_play_songs ? JSON.parse(formData.do_not_play_songs) : []
+  const toastSpeakers = formData.toast_speakers_json ? JSON.parse(formData.toast_speakers_json) : []
+  
+  const summaryHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #1a1a1a; color: #fff; padding: 30px; border-radius: 15px;">
+      <h1 style="color: #E31E24; text-align: center;">Wedding Planning Form - Complete!</h1>
+      <p style="color: #FFD700; text-align: center; font-size: 18px;">${formData.partner1_full_name || ''} & ${formData.partner2_full_name || ''}</p>
+      <p style="color: #C0C0C0; text-align: center;">Booking #${booking.id} | ${booking.event_date}</p>
+      
+      <hr style="border-color: #333; margin: 20px 0;">
+      
+      <h2 style="color: #FFD700;">Couple Information</h2>
+      <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+        <tr><td style="padding: 5px; font-weight: bold;">Partner 1:</td><td style="padding: 5px;">${formData.partner1_full_name || 'N/A'} | ${formData.partner1_phone || ''} | ${formData.partner1_email || ''}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Partner 2:</td><td style="padding: 5px;">${formData.partner2_full_name || 'N/A'} | ${formData.partner2_phone || ''} | ${formData.partner2_email || ''}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Hashtag:</td><td style="padding: 5px;">${formData.couple_hashtag || 'N/A'}</td></tr>
+      </table>
+      
+      <h2 style="color: #FFD700;">Ceremony</h2>
+      <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+        <tr><td style="padding: 5px; font-weight: bold;">Processional:</td><td style="padding: 5px;">${formData.processional_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Recessional:</td><td style="padding: 5px;">${formData.recessional_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Unity Ceremony:</td><td style="padding: 5px;">${formData.unity_ceremony || 'None'}</td></tr>
+      </table>
+      
+      <h2 style="color: #FFD700;">Reception Highlights</h2>
+      <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+        <tr><td style="padding: 5px; font-weight: bold;">Grand Entrance Song:</td><td style="padding: 5px;">${formData.grand_entrance_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">First Dance:</td><td style="padding: 5px;">${formData.first_dance_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Father/Daughter:</td><td style="padding: 5px;">${formData.father_daughter_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Mother/Son:</td><td style="padding: 5px;">${formData.mother_son_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Cake Cutting:</td><td style="padding: 5px;">${formData.cake_cutting_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Last Dance:</td><td style="padding: 5px;">${formData.last_dance_song || 'N/A'}</td></tr>
+        <tr><td style="padding: 5px; font-weight: bold;">Send-Off:</td><td style="padding: 5px;">${formData.send_off_song || 'N/A'} (${formData.send_off_style || 'N/A'})</td></tr>
+      </table>
+      
+      ${bridalParty.length > 0 ? `
+        <h2 style="color: #FFD700;">Bridal Party</h2>
+        <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+          ${bridalParty.map((m: any) => `<tr><td style="padding: 5px;">${m.role || ''}</td><td style="padding: 5px;">${m.name || ''} ${m.partner_name ? '& ' + m.partner_name : ''}</td></tr>`).join('')}
+        </table>
+      ` : ''}
+      
+      ${mustPlay.length > 0 ? `
+        <h2 style="color: #22c55e;">Must-Play Songs</h2>
+        <ul style="color: #C0C0C0;">
+          ${mustPlay.map((s: any) => `<li>"${s.song}" - ${s.artist}${s.moment ? ' (' + s.moment + ')' : ''}</li>`).join('')}
+        </ul>
+      ` : ''}
+      
+      ${doNotPlay.length > 0 ? `
+        <h2 style="color: #E31E24;">Do NOT Play</h2>
+        <ul style="color: #C0C0C0;">
+          ${doNotPlay.map((s: any) => `<li>"${s.song}" - ${s.artist}${s.reason ? ' (' + s.reason + ')' : ''}</li>`).join('')}
+        </ul>
+      ` : ''}
+      
+      ${formData.special_announcements ? `<h2 style="color: #FFD700;">Special Announcements</h2><p style="color: #C0C0C0;">${formData.special_announcements}</p>` : ''}
+      ${formData.memorial_tribute ? `<h2 style="color: #FFD700;">Memorial Tribute</h2><p style="color: #C0C0C0;">${formData.memorial_tribute}: ${formData.memorial_tribute_details || ''}</p>` : ''}
+      
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333;">
+        <p style="color: #666; font-size: 12px;">In The House Productions | Wedding Planning Form Summary</p>
+      </div>
+    </div>
+  `
+  
+  try {
+    // Send to client
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: user.email,
+        subject: `Your Wedding Planning Form - Saved! (${formData.partner1_full_name} & ${formData.partner2_full_name})`,
+        html: summaryHtml
+      })
+    })
+    
+    // Send to DJ/Admin
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: ['mcecil38@yahoo.com'],
+        subject: `NEW Wedding Form Completed - ${formData.partner1_full_name} & ${formData.partner2_full_name} (Booking #${booking.id})`,
+        html: summaryHtml
+      })
+    })
+    
+    return { success: true }
+  } catch (err) {
+    console.error('Failed to send completed form email:', err)
+    return { success: false }
+  }
+}
+
+// API: Get wedding form for a booking
+app.get('/api/wedding-form/:bookingId', async (c) => {
+  try {
+    const bookingId = c.req.param('bookingId')
+    const { DB } = c.env
+    
+    const form = await DB.prepare(
+      "SELECT * FROM wedding_event_forms WHERE booking_id = ?"
+    ).bind(bookingId).first()
+    
+    if (!form) {
+      return c.json({ success: true, form: null, message: 'No form found for this booking' })
+    }
+    
+    return c.json({ success: true, form })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Save/Update wedding form (supports partial saves)
+app.post('/api/wedding-form/:bookingId', async (c) => {
+  try {
+    const bookingId = c.req.param('bookingId')
+    const { DB } = c.env
+    const formData = await c.req.json()
+    
+    // Check if form exists
+    const existingForm = await DB.prepare(
+      "SELECT id FROM wedding_event_forms WHERE booking_id = ?"
+    ).bind(bookingId).first()
+    
+    // Get booking info for user_id
+    const booking = await DB.prepare(
+      "SELECT user_id FROM bookings WHERE id = ?"
+    ).bind(bookingId).first() as any
+    
+    if (!booking) {
+      return c.json({ success: false, error: 'Booking not found' }, 404)
+    }
+    
+    const isComplete = formData.form_status === 'completed'
+    
+    if (existingForm) {
+      // Update existing form
+      await DB.prepare(`
+        UPDATE wedding_event_forms SET
+          form_status = ?,
+          partner1_full_name = ?, partner1_phone = ?, partner1_email = ?,
+          partner2_full_name = ?, partner2_phone = ?, partner2_email = ?,
+          couple_hashtag = ?, how_they_met = ?,
+          ceremony_location = ?, ceremony_time = ?, officiant_name = ?,
+          mic_needed_for_officiant = ?, processional_song = ?, bridesmaids_processional_song = ?,
+          recessional_song = ?, ceremony_readers = ?, unity_ceremony = ?,
+          unity_ceremony_song = ?, ceremony_special_notes = ?,
+          cocktail_start_time = ?, cocktail_end_time = ?, cocktail_location = ?,
+          cocktail_music_vibe = ?, cocktail_special_requests = ?,
+          reception_start_time = ?, grand_entrance_style = ?, grand_entrance_song = ?,
+          first_dance_song = ?, first_dance_style = ?, first_dance_notes = ?,
+          father_daughter_song = ?, father_daughter_notes = ?,
+          mother_son_song = ?, mother_son_notes = ?,
+          cake_cutting_song = ?, bouquet_toss = ?, bouquet_toss_song = ?,
+          garter_toss = ?, garter_toss_song = ?,
+          money_dance = ?, money_dance_song = ?,
+          anniversary_dance = ?, last_dance_song = ?,
+          send_off_song = ?, send_off_style = ?,
+          bridal_party_json = ?, flower_girl_name = ?, ring_bearer_name = ?,
+          vip_family_json = ?, memorial_tribute = ?, memorial_tribute_details = ?,
+          special_announcements = ?,
+          music_genres_preferred = ?, music_genres_avoid = ?,
+          must_play_songs = ?, do_not_play_songs = ?,
+          dinner_music_vibe = ?, dance_floor_energy = ?, clean_music_only = ?,
+          music_notes = ?,
+          toast_speakers_json = ?, toast_mic_preference = ?, toast_time_limit = ?,
+          dj_setup_time = ?, power_location = ?, indoor_outdoor = ?,
+          rain_plan = ?, dj_placement = ?, dance_floor_size = ?, lighting_notes = ?,
+          wants_uplighting = ?, uplighting_color = ?, wants_karaoke = ?,
+          wants_fog_machine = ?, wants_photobooth = ?, photobooth_coordination_notes = ?,
+          other_vendors = ?, vendor_contact_info = ?,
+          last_saved_section = ?,
+          completed_at = CASE WHEN ? = 1 THEN datetime('now') ELSE completed_at END,
+          updated_at = datetime('now')
+        WHERE booking_id = ?
+      `).bind(
+        formData.form_status || 'in_progress',
+        formData.partner1_full_name || '', formData.partner1_phone || '', formData.partner1_email || '',
+        formData.partner2_full_name || '', formData.partner2_phone || '', formData.partner2_email || '',
+        formData.couple_hashtag || '', formData.how_they_met || '',
+        formData.ceremony_location || '', formData.ceremony_time || '', formData.officiant_name || '',
+        formData.mic_needed_for_officiant ? 1 : 0, formData.processional_song || '', formData.bridesmaids_processional_song || '',
+        formData.recessional_song || '', formData.ceremony_readers || '', formData.unity_ceremony || '',
+        formData.unity_ceremony_song || '', formData.ceremony_special_notes || '',
+        formData.cocktail_start_time || '', formData.cocktail_end_time || '', formData.cocktail_location || '',
+        formData.cocktail_music_vibe || '', formData.cocktail_special_requests || '',
+        formData.reception_start_time || '', formData.grand_entrance_style || '', formData.grand_entrance_song || '',
+        formData.first_dance_song || '', formData.first_dance_style || '', formData.first_dance_notes || '',
+        formData.father_daughter_song || '', formData.father_daughter_notes || '',
+        formData.mother_son_song || '', formData.mother_son_notes || '',
+        formData.cake_cutting_song || '', formData.bouquet_toss ? 1 : 0, formData.bouquet_toss_song || '',
+        formData.garter_toss ? 1 : 0, formData.garter_toss_song || '',
+        formData.money_dance ? 1 : 0, formData.money_dance_song || '',
+        formData.anniversary_dance ? 1 : 0, formData.last_dance_song || '',
+        formData.send_off_song || '', formData.send_off_style || '',
+        typeof formData.bridal_party_json === 'string' ? formData.bridal_party_json : JSON.stringify(formData.bridal_party_json || []),
+        formData.flower_girl_name || '', formData.ring_bearer_name || '',
+        typeof formData.vip_family_json === 'string' ? formData.vip_family_json : JSON.stringify(formData.vip_family_json || []),
+        formData.memorial_tribute || '', formData.memorial_tribute_details || '',
+        formData.special_announcements || '',
+        typeof formData.music_genres_preferred === 'string' ? formData.music_genres_preferred : JSON.stringify(formData.music_genres_preferred || []),
+        typeof formData.music_genres_avoid === 'string' ? formData.music_genres_avoid : JSON.stringify(formData.music_genres_avoid || []),
+        typeof formData.must_play_songs === 'string' ? formData.must_play_songs : JSON.stringify(formData.must_play_songs || []),
+        typeof formData.do_not_play_songs === 'string' ? formData.do_not_play_songs : JSON.stringify(formData.do_not_play_songs || []),
+        formData.dinner_music_vibe || '', formData.dance_floor_energy || '', formData.clean_music_only ? 1 : 0,
+        formData.music_notes || '',
+        typeof formData.toast_speakers_json === 'string' ? formData.toast_speakers_json : JSON.stringify(formData.toast_speakers_json || []),
+        formData.toast_mic_preference || '', formData.toast_time_limit || '',
+        formData.dj_setup_time || '', formData.power_location || '', formData.indoor_outdoor || '',
+        formData.rain_plan || '', formData.dj_placement || '', formData.dance_floor_size || '', formData.lighting_notes || '',
+        formData.wants_uplighting ? 1 : 0, formData.uplighting_color || '', formData.wants_karaoke ? 1 : 0,
+        formData.wants_fog_machine ? 1 : 0, formData.wants_photobooth ? 1 : 0, formData.photobooth_coordination_notes || '',
+        formData.other_vendors || '', typeof formData.vendor_contact_info === 'string' ? formData.vendor_contact_info : JSON.stringify(formData.vendor_contact_info || ''),
+        formData.last_saved_section || '',
+        isComplete ? 1 : 0,
+        bookingId
+      ).run()
+    } else {
+      // Create new form
+      await DB.prepare(`
+        INSERT INTO wedding_event_forms (
+          booking_id, user_id, form_status,
+          partner1_full_name, partner1_phone, partner1_email,
+          partner2_full_name, partner2_phone, partner2_email,
+          couple_hashtag, how_they_met,
+          ceremony_location, ceremony_time, officiant_name,
+          mic_needed_for_officiant, processional_song, bridesmaids_processional_song,
+          recessional_song, ceremony_readers, unity_ceremony,
+          unity_ceremony_song, ceremony_special_notes,
+          cocktail_start_time, cocktail_end_time, cocktail_location,
+          cocktail_music_vibe, cocktail_special_requests,
+          reception_start_time, grand_entrance_style, grand_entrance_song,
+          first_dance_song, first_dance_style, first_dance_notes,
+          father_daughter_song, father_daughter_notes,
+          mother_son_song, mother_son_notes,
+          cake_cutting_song, bouquet_toss, bouquet_toss_song,
+          garter_toss, garter_toss_song,
+          money_dance, money_dance_song,
+          anniversary_dance, last_dance_song,
+          send_off_song, send_off_style,
+          bridal_party_json, flower_girl_name, ring_bearer_name,
+          vip_family_json, memorial_tribute, memorial_tribute_details,
+          special_announcements,
+          music_genres_preferred, music_genres_avoid,
+          must_play_songs, do_not_play_songs,
+          dinner_music_vibe, dance_floor_energy, clean_music_only,
+          music_notes,
+          toast_speakers_json, toast_mic_preference, toast_time_limit,
+          dj_setup_time, power_location, indoor_outdoor,
+          rain_plan, dj_placement, dance_floor_size, lighting_notes,
+          wants_uplighting, uplighting_color, wants_karaoke,
+          wants_fog_machine, wants_photobooth, photobooth_coordination_notes,
+          other_vendors, vendor_contact_info,
+          last_saved_section,
+          completed_at
+        ) VALUES (
+          ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?,
+          CASE WHEN ? = 'completed' THEN datetime('now') ELSE NULL END
+        )
+      `).bind(
+        bookingId, booking.user_id, formData.form_status || 'in_progress',
+        formData.partner1_full_name || '', formData.partner1_phone || '', formData.partner1_email || '',
+        formData.partner2_full_name || '', formData.partner2_phone || '', formData.partner2_email || '',
+        formData.couple_hashtag || '', formData.how_they_met || '',
+        formData.ceremony_location || '', formData.ceremony_time || '', formData.officiant_name || '',
+        formData.mic_needed_for_officiant ? 1 : 0, formData.processional_song || '', formData.bridesmaids_processional_song || '',
+        formData.recessional_song || '', formData.ceremony_readers || '', formData.unity_ceremony || '',
+        formData.unity_ceremony_song || '', formData.ceremony_special_notes || '',
+        formData.cocktail_start_time || '', formData.cocktail_end_time || '', formData.cocktail_location || '',
+        formData.cocktail_music_vibe || '', formData.cocktail_special_requests || '',
+        formData.reception_start_time || '', formData.grand_entrance_style || '', formData.grand_entrance_song || '',
+        formData.first_dance_song || '', formData.first_dance_style || '', formData.first_dance_notes || '',
+        formData.father_daughter_song || '', formData.father_daughter_notes || '',
+        formData.mother_son_song || '', formData.mother_son_notes || '',
+        formData.cake_cutting_song || '', formData.bouquet_toss ? 1 : 0, formData.bouquet_toss_song || '',
+        formData.garter_toss ? 1 : 0, formData.garter_toss_song || '',
+        formData.money_dance ? 1 : 0, formData.money_dance_song || '',
+        formData.anniversary_dance ? 1 : 0, formData.last_dance_song || '',
+        formData.send_off_song || '', formData.send_off_style || '',
+        typeof formData.bridal_party_json === 'string' ? formData.bridal_party_json : JSON.stringify(formData.bridal_party_json || []),
+        formData.flower_girl_name || '', formData.ring_bearer_name || '',
+        typeof formData.vip_family_json === 'string' ? formData.vip_family_json : JSON.stringify(formData.vip_family_json || []),
+        formData.memorial_tribute || '', formData.memorial_tribute_details || '',
+        formData.special_announcements || '',
+        typeof formData.music_genres_preferred === 'string' ? formData.music_genres_preferred : JSON.stringify(formData.music_genres_preferred || []),
+        typeof formData.music_genres_avoid === 'string' ? formData.music_genres_avoid : JSON.stringify(formData.music_genres_avoid || []),
+        typeof formData.must_play_songs === 'string' ? formData.must_play_songs : JSON.stringify(formData.must_play_songs || []),
+        typeof formData.do_not_play_songs === 'string' ? formData.do_not_play_songs : JSON.stringify(formData.do_not_play_songs || []),
+        formData.dinner_music_vibe || '', formData.dance_floor_energy || '', formData.clean_music_only ? 1 : 0,
+        formData.music_notes || '',
+        typeof formData.toast_speakers_json === 'string' ? formData.toast_speakers_json : JSON.stringify(formData.toast_speakers_json || []),
+        formData.toast_mic_preference || '', formData.toast_time_limit || '',
+        formData.dj_setup_time || '', formData.power_location || '', formData.indoor_outdoor || '',
+        formData.rain_plan || '', formData.dj_placement || '', formData.dance_floor_size || '', formData.lighting_notes || '',
+        formData.wants_uplighting ? 1 : 0, formData.uplighting_color || '', formData.wants_karaoke ? 1 : 0,
+        formData.wants_fog_machine ? 1 : 0, formData.wants_photobooth ? 1 : 0, formData.photobooth_coordination_notes || '',
+        formData.other_vendors || '', typeof formData.vendor_contact_info === 'string' ? formData.vendor_contact_info : JSON.stringify(formData.vendor_contact_info || ''),
+        formData.last_saved_section || '',
+        formData.form_status || 'in_progress'
+      ).run()
+    }
+    
+    // If form is completed, send summary emails
+    if (isComplete) {
+      const fullForm = await DB.prepare("SELECT * FROM wedding_event_forms WHERE booking_id = ?").bind(bookingId).first()
+      const fullBooking = await DB.prepare("SELECT * FROM bookings WHERE id = ?").bind(bookingId).first()
+      const user = await DB.prepare("SELECT * FROM users WHERE id = ?").bind(booking.user_id).first()
+      
+      if (fullForm && fullBooking && user) {
+        await sendWeddingFormCompletedEmail(c.env, fullForm, fullBooking, user)
+        
+        // Mark emails as sent
+        await DB.prepare(
+          "UPDATE wedding_event_forms SET emailed_to_client = 1, emailed_to_dj = 1 WHERE booking_id = ?"
+        ).bind(bookingId).run()
+      }
+    }
+    
+    return c.json({ success: true, message: isComplete ? 'Wedding form submitted successfully!' : 'Progress saved!' })
+  } catch (error: any) {
+    console.error('Wedding form save error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Trigger wedding form email manually (admin)
+app.post('/api/wedding-form/:bookingId/send-email', async (c) => {
+  try {
+    const bookingId = c.req.param('bookingId')
+    const { DB } = c.env
+    
+    const booking = await DB.prepare("SELECT * FROM bookings WHERE id = ?").bind(bookingId).first() as any
+    if (!booking) return c.json({ error: 'Booking not found' }, 404)
+    
+    const user = await DB.prepare("SELECT * FROM users WHERE id = ?").bind(booking.user_id).first() as any
+    if (!user) return c.json({ error: 'User not found' }, 404)
+    
+    // Create form record if it doesn't exist
+    const existingForm = await DB.prepare("SELECT id FROM wedding_event_forms WHERE booking_id = ?").bind(bookingId).first()
+    if (!existingForm) {
+      await DB.prepare(
+        "INSERT INTO wedding_event_forms (booking_id, user_id, form_status) VALUES (?, ?, 'pending')"
+      ).bind(bookingId, booking.user_id).run()
+    }
+    
+    const baseUrl = new URL(c.req.url).origin
+    const formUrl = `${baseUrl}/wedding-planner/${bookingId}`
+    
+    await sendWeddingFormEmail(c.env, booking, user, formUrl)
+    
+    return c.json({ success: true, message: 'Wedding form email sent!', formUrl })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Get all wedding forms (admin)
+app.get('/api/admin/wedding-forms', async (c) => {
+  try {
+    const { DB } = c.env
+    const result = await DB.prepare(`
+      SELECT 
+        wf.*,
+        b.event_date, b.service_provider, b.status as booking_status, b.total_price,
+        u.full_name as client_name, u.email as client_email, u.phone as client_phone
+      FROM wedding_event_forms wf
+      JOIN bookings b ON wf.booking_id = b.id
+      JOIN users u ON wf.user_id = u.id
+      ORDER BY wf.updated_at DESC
+    `).all()
+    
+    return c.json({ success: true, forms: result.results })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// ===== AUTOMATIC INVOICING SYSTEM =====
+
+// API: Create invoice for a booking
+app.post('/api/invoices/create', async (c) => {
+  try {
+    const { DB } = c.env
+    const body = await c.req.json()
+    const { bookingId, notes, dueInDays } = body
+    
+    const booking = await DB.prepare(`
+      SELECT b.*, u.full_name, u.email, u.phone, 
+             e.event_name, e.event_type, e.street_address, e.city, e.state, e.zip_code, e.number_of_guests
+      FROM bookings b
+      JOIN users u ON b.user_id = u.id
+      LEFT JOIN event_details e ON b.id = e.booking_id
+      WHERE b.id = ?
+    `).bind(bookingId).first() as any
+    
+    if (!booking) return c.json({ error: 'Booking not found' }, 404)
+    
+    // Check for existing invoice
+    const existingInvoice = await DB.prepare(
+      "SELECT id FROM invoices WHERE booking_id = ?"
+    ).bind(bookingId).first()
+    
+    if (existingInvoice) {
+      return c.json({ error: 'Invoice already exists for this booking' }, 409)
+    }
+    
+    const invoiceNumber = await generateInvoiceNumber(DB)
+    const total = booking.total_price || 0
+    const issueDate = new Date().toISOString().split('T')[0]
+    const dueDate = new Date(Date.now() + (dueInDays || 14) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const nextReminder = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    
+    // Build line items
+    const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    const lineItems = [{
+      service: providerName || booking.service_type,
+      description: `${booking.event_type || booking.service_type} - ${booking.event_name || 'Event'} on ${booking.event_date}`,
+      qty: 1,
+      rate: total,
+      amount: total
+    }]
+    
+    const amountPaid = booking.payment_status === 'paid' ? total : 0
+    const amountDue = total - amountPaid
+    
+    await DB.prepare(`
+      INSERT INTO invoices (
+        booking_id, user_id, invoice_number, status,
+        subtotal, total, amount_paid, amount_due,
+        line_items_json, issue_date, due_date,
+        paid_date, next_reminder_date, notes, terms,
+        auto_reminders
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      bookingId, booking.user_id, invoiceNumber,
+      amountPaid >= total ? 'paid' : 'sent',
+      total, total, amountPaid, amountDue,
+      JSON.stringify(lineItems), issueDate, dueDate,
+      amountPaid >= total ? issueDate : null,
+      amountDue > 0 ? nextReminder : null,
+      notes || '',
+      'Payment is due within ' + (dueInDays || 14) + ' days. Late payments may incur additional fees.',
+      1
+    ).run()
+    
+    // Send invoice email to client
+    const RESEND_API_KEY = c.env.RESEND_API_KEY
+    if (RESEND_API_KEY && !RESEND_API_KEY.includes('mock')) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'In The House Productions <noreply@inthehouseproductions.com>',
+          to: booking.email,
+          subject: `Invoice ${invoiceNumber} - In The House Productions`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #fff; padding: 30px; border-radius: 15px;">
+              <h1 style="color: #E31E24; text-align: center;">INVOICE</h1>
+              <p style="color: #FFD700; text-align: center; font-size: 24px; font-weight: bold;">${invoiceNumber}</p>
+              
+              <table style="width: 100%; color: #C0C0C0; margin: 20px 0;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #333;"><strong>Client:</strong></td><td style="padding: 8px; border-bottom: 1px solid #333;">${booking.full_name}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #333;"><strong>Event:</strong></td><td style="padding: 8px; border-bottom: 1px solid #333;">${booking.event_name || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #333;"><strong>Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #333;">${booking.event_date}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #333;"><strong>Issue Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #333;">${issueDate}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #333;"><strong>Due Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #333;">${dueDate}</td></tr>
+              </table>
+              
+              <table style="width: 100%; color: #C0C0C0; margin: 20px 0; border-collapse: collapse;">
+                <tr style="background: rgba(227,30,36,0.3);">
+                  <th style="padding: 10px; text-align: left;">Service</th>
+                  <th style="padding: 10px; text-align: right;">Amount</th>
+                </tr>
+                ${lineItems.map(item => `<tr><td style="padding: 10px; border-bottom: 1px solid #333;">${item.description}</td><td style="padding: 10px; border-bottom: 1px solid #333; text-align: right;">$${item.amount.toFixed(2)}</td></tr>`).join('')}
+                <tr style="font-size: 18px; font-weight: bold;">
+                  <td style="padding: 15px; color: #FFD700;">TOTAL</td>
+                  <td style="padding: 15px; text-align: right; color: #FFD700;">$${total.toFixed(2)}</td>
+                </tr>
+                ${amountPaid > 0 ? `<tr><td style="padding: 10px; color: #22c55e;">Amount Paid</td><td style="padding: 10px; text-align: right; color: #22c55e;">-$${amountPaid.toFixed(2)}</td></tr>` : ''}
+                ${amountDue > 0 ? `<tr style="font-size: 20px; font-weight: bold;"><td style="padding: 15px; color: #E31E24;">AMOUNT DUE</td><td style="padding: 15px; text-align: right; color: #E31E24;">$${amountDue.toFixed(2)}</td></tr>` : '<tr><td colspan="2" style="padding: 15px; text-align: center; color: #22c55e; font-size: 20px; font-weight: bold;">PAID IN FULL</td></tr>'}
+              </table>
+              
+              <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333;">
+                <p style="color: #888; font-size: 12px;">In The House Productions | (816) 217-1094</p>
+                <p style="color: #666; font-size: 11px;">Payment is due within ${dueInDays || 14} days</p>
+              </div>
+            </div>
+          `
+        })
+      })
+    }
+    
+    return c.json({ success: true, invoiceNumber, status: amountPaid >= total ? 'paid' : 'sent' })
+  } catch (error: any) {
+    console.error('Invoice creation error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Get all invoices (admin)
+app.get('/api/admin/invoices', async (c) => {
+  try {
+    const { DB } = c.env
+    const result = await DB.prepare(`
+      SELECT 
+        i.*,
+        u.full_name as client_name, u.email as client_email, u.phone as client_phone,
+        b.event_date, b.service_type, b.service_provider
+      FROM invoices i
+      JOIN users u ON i.user_id = u.id
+      JOIN bookings b ON i.booking_id = b.id
+      ORDER BY i.created_at DESC
+    `).all()
+    
+    return c.json({ success: true, invoices: result.results })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Get single invoice
+app.get('/api/invoices/:invoiceId', async (c) => {
+  try {
+    const invoiceId = c.req.param('invoiceId')
+    const { DB } = c.env
+    
+    const invoice = await DB.prepare(`
+      SELECT 
+        i.*,
+        u.full_name as client_name, u.email as client_email, u.phone as client_phone,
+        b.event_date, b.event_start_time, b.event_end_time, b.service_type, b.service_provider,
+        e.event_name, e.event_type, e.street_address, e.city, e.state, e.zip_code
+      FROM invoices i
+      JOIN users u ON i.user_id = u.id
+      JOIN bookings b ON i.booking_id = b.id
+      LEFT JOIN event_details e ON b.id = e.booking_id
+      WHERE i.id = ?
+    `).bind(invoiceId).first()
+    
+    if (!invoice) return c.json({ error: 'Invoice not found' }, 404)
+    
+    return c.json({ success: true, invoice })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Update invoice status
+app.post('/api/invoices/:invoiceId/status', async (c) => {
+  try {
+    const invoiceId = c.req.param('invoiceId')
+    const { status } = await c.req.json()
+    const { DB } = c.env
+    
+    const validStatuses = ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled', 'refunded']
+    if (!validStatuses.includes(status)) {
+      return c.json({ error: 'Invalid status' }, 400)
+    }
+    
+    const updates: string[] = [`status = '${status}'`, "updated_at = datetime('now')"]
+    
+    if (status === 'paid') {
+      updates.push("paid_date = date('now')")
+      updates.push("amount_due = 0")
+      updates.push("amount_paid = total")
+    }
+    
+    await DB.prepare(`UPDATE invoices SET ${updates.join(', ')} WHERE id = ?`).bind(invoiceId).run()
+    
+    // Also update booking payment status if invoice is marked paid
+    if (status === 'paid') {
+      const invoice = await DB.prepare("SELECT booking_id FROM invoices WHERE id = ?").bind(invoiceId).first() as any
+      if (invoice) {
+        await DB.prepare("UPDATE bookings SET payment_status = 'paid', status = 'confirmed' WHERE id = ?")
+          .bind(invoice.booking_id).run()
+      }
+    }
+    
+    return c.json({ success: true, message: 'Invoice status updated' })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Send invoice reminder
+app.post('/api/invoices/:invoiceId/send-reminder', async (c) => {
+  try {
+    const invoiceId = c.req.param('invoiceId')
+    const { DB } = c.env
+    
+    const invoice = await DB.prepare(`
+      SELECT i.*, u.full_name, u.email
+      FROM invoices i
+      JOIN users u ON i.user_id = u.id
+      WHERE i.id = ?
+    `).bind(invoiceId).first() as any
+    
+    if (!invoice) return c.json({ error: 'Invoice not found' }, 404)
+    if (invoice.status === 'paid') return c.json({ error: 'Invoice already paid' }, 400)
+    
+    const RESEND_API_KEY = c.env.RESEND_API_KEY
+    if (RESEND_API_KEY && !RESEND_API_KEY.includes('mock')) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'In The House Productions <noreply@inthehouseproductions.com>',
+          to: invoice.email,
+          subject: `Payment Reminder - Invoice ${invoice.invoice_number} ($${invoice.amount_due.toFixed(2)} due)`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #fff; padding: 30px; border-radius: 15px;">
+              <h1 style="color: #FFD700; text-align: center;">Payment Reminder</h1>
+              <p style="color: #C0C0C0; text-align: center;">Invoice ${invoice.invoice_number}</p>
+              
+              <div style="background: rgba(227,30,36,0.15); border: 2px solid #E31E24; border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center;">
+                <p style="color: #E31E24; font-size: 28px; font-weight: bold; margin: 0;">$${invoice.amount_due.toFixed(2)}</p>
+                <p style="color: #C0C0C0; margin: 5px 0 0 0;">Amount Due by ${invoice.due_date}</p>
+              </div>
+              
+              <p style="color: #C0C0C0;">Hi ${invoice.full_name},</p>
+              <p style="color: #C0C0C0; line-height: 1.6;">
+                This is a friendly reminder that payment for your upcoming event is due. 
+                Please contact us at (816) 217-1094 if you have any questions about your invoice.
+              </p>
+              
+              <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333;">
+                <p style="color: #666; font-size: 12px;">In The House Productions | (816) 217-1094</p>
+              </div>
+            </div>
+          `
+        })
+      })
+    }
+    
+    // Update reminder tracking
+    const nextReminder = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    await DB.prepare(`
+      UPDATE invoices SET 
+        reminder_sent_count = reminder_sent_count + 1,
+        last_reminder_sent = datetime('now'),
+        next_reminder_date = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(nextReminder, invoiceId).run()
+    
+    return c.json({ success: true, message: 'Reminder sent!' })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// API: Auto-generate invoices for confirmed bookings without one
+app.post('/api/invoices/auto-generate', async (c) => {
+  try {
+    const { DB } = c.env
+    
+    // Find confirmed bookings without invoices
+    const bookingsWithoutInvoices = await DB.prepare(`
+      SELECT b.id
+      FROM bookings b
+      LEFT JOIN invoices i ON b.id = i.booking_id
+      WHERE i.id IS NULL AND b.status IN ('pending', 'confirmed')
+      ORDER BY b.created_at DESC
+    `).all()
+    
+    const generated: string[] = []
+    
+    for (const row of bookingsWithoutInvoices.results as any[]) {
+      try {
+        const invoiceNumber = await generateInvoiceNumber(DB)
+        const booking = await DB.prepare(`
+          SELECT b.*, e.event_name, e.event_type
+          FROM bookings b
+          LEFT JOIN event_details e ON b.id = e.booking_id
+          WHERE b.id = ?
+        `).bind(row.id).first() as any
+        
+        if (!booking) continue
+        
+        const total = booking.total_price || 0
+        const issueDate = new Date().toISOString().split('T')[0]
+        const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const amountPaid = booking.payment_status === 'paid' ? total : 0
+        
+        const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+        const lineItems = [{
+          service: providerName || booking.service_type,
+          description: `${booking.event_type || booking.service_type} - ${booking.event_name || 'Event'} on ${booking.event_date}`,
+          qty: 1, rate: total, amount: total
+        }]
+        
+        await DB.prepare(`
+          INSERT INTO invoices (
+            booking_id, user_id, invoice_number, status,
+            subtotal, total, amount_paid, amount_due,
+            line_items_json, issue_date, due_date,
+            paid_date, auto_reminders, terms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          row.id, booking.user_id, invoiceNumber,
+          amountPaid >= total ? 'paid' : 'sent',
+          total, total, amountPaid, total - amountPaid,
+          JSON.stringify(lineItems), issueDate, dueDate,
+          amountPaid >= total ? issueDate : null,
+          1, 'Payment is due within 14 days.'
+        ).run()
+        
+        generated.push(invoiceNumber)
+      } catch (err) {
+        console.error(`Failed to generate invoice for booking ${row.id}:`, err)
+      }
+    }
+    
+    return c.json({ success: true, generated: generated.length, invoiceNumbers: generated })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// ===== WEDDING PLANNER FORM PAGE =====
+app.get('/wedding-planner/:bookingId', (c) => {
+  const bookingId = c.req.param('bookingId')
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Wedding Planning Form - In The House Productions</title>
+        ${generateRefersionTrackingScript(refersionKey)}
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
+        <style>
+          :root { --primary-red: #E31E24; --chrome-silver: #C0C0C0; --gold: #FFD700; --deep-black: #000; }
+          body { background: #000; color: #fff; font-family: 'Arial', sans-serif; }
+          .form-wrapper { max-width: 900px; margin: 0 auto; padding: 1rem; }
+          .section-card { background: rgba(20,20,20,0.95); border: 2px solid #333; border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem; transition: border-color 0.3s; }
+          .section-card.active { border-color: var(--primary-red); box-shadow: 0 0 20px rgba(227,30,36,0.2); }
+          .section-card.completed { border-color: #22c55e; }
+          .section-header { display: flex; align-items: center; cursor: pointer; padding: 0.5rem 0; }
+          .section-header h2 { font-size: 1.3rem; font-weight: bold; color: var(--gold); margin: 0; flex: 1; }
+          .section-number { width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; margin-right: 12px; background: #333; color: #888; flex-shrink: 0; }
+          .section-number.active { background: var(--primary-red); color: #fff; }
+          .section-number.completed { background: #22c55e; color: #fff; }
+          .section-body { display: none; padding-top: 1rem; }
+          .section-body.open { display: block; }
+          .form-group { margin-bottom: 1.2rem; }
+          .form-label { display: block; color: var(--chrome-silver); font-weight: bold; margin-bottom: 0.4rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+          .form-input, .form-select, .form-textarea { width: 100%; padding: 0.65rem; background: rgba(0,0,0,0.6); border: 2px solid #444; border-radius: 8px; color: #fff; font-size: 0.95rem; transition: border-color 0.3s; box-sizing: border-box; }
+          .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--primary-red); box-shadow: 0 0 10px rgba(227,30,36,0.2); }
+          .form-textarea { resize: vertical; min-height: 80px; }
+          .form-row { display: grid; gap: 1rem; }
+          .form-row-2 { grid-template-columns: 1fr 1fr; }
+          .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+          @media (max-width: 640px) { .form-row-2, .form-row-3 { grid-template-columns: 1fr; } }
+          .checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem; }
+          .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary-red); }
+          .checkbox-group label { color: var(--chrome-silver); cursor: pointer; }
+          .btn { padding: 0.75rem 2rem; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; font-size: 0.95rem; }
+          .btn-save { background: linear-gradient(135deg, #333, #555); color: #fff; border: 2px solid var(--chrome-silver); }
+          .btn-save:hover { background: linear-gradient(135deg, #444, #666); transform: translateY(-2px); }
+          .btn-submit { background: linear-gradient(135deg, var(--primary-red), #FF0040); color: #fff; border: 2px solid var(--chrome-silver); box-shadow: 0 0 20px rgba(227,30,36,0.4); }
+          .btn-submit:hover { transform: translateY(-3px); box-shadow: 0 0 30px rgba(255,0,64,0.6); }
+          .btn-next { background: linear-gradient(135deg, #333, #555); color: var(--gold); border: 2px solid var(--gold); }
+          .btn-next:hover { background: var(--gold); color: #000; }
+          .dynamic-list { margin-top: 0.5rem; }
+          .dynamic-item { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
+          .dynamic-item input { flex: 1; min-width: 120px; }
+          .btn-remove { background: #DC3545; color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 5px; cursor: pointer; font-size: 0.85rem; flex-shrink: 0; }
+          .btn-add { background: none; border: 2px dashed #555; color: var(--chrome-silver); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 0.5rem; transition: all 0.3s; }
+          .btn-add:hover { border-color: var(--primary-red); color: var(--primary-red); }
+          .genre-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+          .genre-tag { padding: 0.4rem 1rem; border: 2px solid #555; border-radius: 20px; cursor: pointer; transition: all 0.3s; font-size: 0.85rem; color: #999; }
+          .genre-tag.selected { border-color: var(--primary-red); background: rgba(227,30,36,0.2); color: #fff; }
+          .genre-tag:hover { border-color: var(--primary-red); }
+          .progress-bar { width: 100%; height: 6px; background: #333; border-radius: 3px; margin: 1rem 0; overflow: hidden; }
+          .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary-red), var(--gold)); transition: width 0.5s ease; border-radius: 3px; }
+          .save-indicator { position: fixed; top: 20px; right: 20px; background: #22c55e; color: #fff; padding: 0.5rem 1rem; border-radius: 8px; font-weight: bold; display: none; z-index: 9999; animation: fadeIn 0.3s; }
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+          .nav-dots { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+          .nav-dot { width: 12px; height: 12px; border-radius: 50%; background: #333; cursor: pointer; transition: all 0.3s; border: 2px solid #555; }
+          .nav-dot.active { background: var(--primary-red); border-color: var(--primary-red); transform: scale(1.2); }
+          .nav-dot.completed { background: #22c55e; border-color: #22c55e; }
+          .success-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 10000; }
+          .success-content { text-align: center; max-width: 500px; padding: 2rem; }
+        </style>
+    </head>
+    <body>
+        <div id="saveIndicator" class="save-indicator"><i class="fas fa-check mr-2"></i>Saved!</div>
+        
+        <div id="successOverlay" class="success-overlay">
+          <div class="success-content">
+            <i class="fas fa-check-circle text-green-500" style="font-size: 5rem;"></i>
+            <h1 class="text-3xl font-bold mt-6 mb-4 text-green-400">Form Submitted!</h1>
+            <p class="text-gray-300 text-lg mb-6">Your wedding planning form has been submitted. A copy has been emailed to you and your DJ will review everything.</p>
+            <a href="/" class="btn btn-submit"><i class="fas fa-home mr-2"></i>Return Home</a>
+          </div>
+        </div>
+        
+        <div class="form-wrapper">
+            <!-- Header -->
+            <div class="text-center mb-6" style="padding-top: 1rem;">
+                <h1 style="font-size: 2rem; color: var(--gold); font-weight: bold; text-shadow: 0 0 10px rgba(255,215,0,0.3);">
+                  <i class="fas fa-ring mr-2"></i>Wedding Planning Form
+                </h1>
+                <p class="text-gray-400 mt-2">Help us make your big day perfect!</p>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
+                <p class="text-sm text-gray-500" id="progressText">0% Complete</p>
+            </div>
+            
+            <!-- Section Navigation Dots -->
+            <div class="nav-dots" id="navDots"></div>
+            
+            <form id="weddingForm">
+            
+            <!-- SECTION 1: Couple Information -->
+            <div class="section-card" id="section1" data-section="1">
+              <div class="section-header" onclick="toggleSection(1)">
+                <div class="section-number" id="sectionNum1">1</div>
+                <h2><i class="fas fa-heart mr-2" style="color: var(--primary-red);"></i>Couple Information</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron1"></i>
+              </div>
+              <div class="section-body open" id="sectionBody1">
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Partner 1 Full Name *</label><input type="text" class="form-input" name="partner1_full_name" required></div>
+                  <div class="form-group"><label class="form-label">Partner 2 Full Name *</label><input type="text" class="form-input" name="partner2_full_name" required></div>
+                </div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Partner 1 Phone</label><input type="tel" class="form-input" name="partner1_phone"></div>
+                  <div class="form-group"><label class="form-label">Partner 2 Phone</label><input type="tel" class="form-input" name="partner2_phone"></div>
+                </div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Partner 1 Email</label><input type="email" class="form-input" name="partner1_email"></div>
+                  <div class="form-group"><label class="form-label">Partner 2 Email</label><input type="email" class="form-input" name="partner2_email"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Wedding Hashtag</label><input type="text" class="form-input" name="couple_hashtag" placeholder="#SmithJonesWedding"></div>
+                <div class="form-group"><label class="form-label">How Did You Meet? (optional)</label><textarea class="form-textarea" name="how_they_met" placeholder="Your love story..."></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(2)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 2: Ceremony Details -->
+            <div class="section-card" id="section2" data-section="2">
+              <div class="section-header" onclick="toggleSection(2)">
+                <div class="section-number" id="sectionNum2">2</div>
+                <h2><i class="fas fa-church mr-2" style="color: var(--primary-red);"></i>Ceremony Details</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron2"></i>
+              </div>
+              <div class="section-body" id="sectionBody2">
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Ceremony Location</label><input type="text" class="form-input" name="ceremony_location" placeholder="Same as reception or different?"></div>
+                  <div class="form-group"><label class="form-label">Ceremony Time</label><input type="time" class="form-input" name="ceremony_time"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Officiant Name</label><input type="text" class="form-input" name="officiant_name"></div>
+                <div class="checkbox-group"><input type="checkbox" id="micOfficiant" name="mic_needed_for_officiant"><label for="micOfficiant">Mic needed for officiant?</label></div>
+                <div class="form-group"><label class="form-label">Processional Song (Bride walking down aisle)</label><input type="text" class="form-input" name="processional_song" placeholder="Song - Artist"></div>
+                <div class="form-group"><label class="form-label">Bridesmaids Processional Song</label><input type="text" class="form-input" name="bridesmaids_processional_song" placeholder="Song - Artist (leave blank if same)"></div>
+                <div class="form-group"><label class="form-label">Recessional Song (Walking out as married couple)</label><input type="text" class="form-input" name="recessional_song" placeholder="Song - Artist"></div>
+                <div class="form-group"><label class="form-label">Ceremony Readers</label><input type="text" class="form-input" name="ceremony_readers" placeholder="Names of anyone doing readings"></div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Unity Ceremony</label>
+                    <select class="form-select" name="unity_ceremony">
+                      <option value="">None</option><option value="sand">Sand Ceremony</option><option value="candle">Unity Candle</option>
+                      <option value="handfasting">Handfasting</option><option value="wine">Wine Ceremony</option><option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label class="form-label">Unity Ceremony Song</label><input type="text" class="form-input" name="unity_ceremony_song" placeholder="Song - Artist"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Ceremony Special Notes</label><textarea class="form-textarea" name="ceremony_special_notes" placeholder="Anything else about the ceremony..."></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(3)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 3: Cocktail Hour -->
+            <div class="section-card" id="section3" data-section="3">
+              <div class="section-header" onclick="toggleSection(3)">
+                <div class="section-number" id="sectionNum3">3</div>
+                <h2><i class="fas fa-cocktail mr-2" style="color: var(--primary-red);"></i>Cocktail Hour</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron3"></i>
+              </div>
+              <div class="section-body" id="sectionBody3">
+                <div class="form-row form-row-3">
+                  <div class="form-group"><label class="form-label">Start Time</label><input type="time" class="form-input" name="cocktail_start_time"></div>
+                  <div class="form-group"><label class="form-label">End Time</label><input type="time" class="form-input" name="cocktail_end_time"></div>
+                  <div class="form-group"><label class="form-label">Location</label><input type="text" class="form-input" name="cocktail_location" placeholder="Same room, patio, etc."></div>
+                </div>
+                <div class="form-group"><label class="form-label">Music Vibe</label>
+                  <select class="form-select" name="cocktail_music_vibe">
+                    <option value="">Select...</option><option value="jazz">Jazz / Smooth</option><option value="acoustic">Acoustic / Soft</option>
+                    <option value="lounge">Lounge / Chill</option><option value="upbeat">Upbeat Background</option><option value="classical">Classical</option>
+                    <option value="no_preference">No Preference</option>
+                  </select>
+                </div>
+                <div class="form-group"><label class="form-label">Special Requests</label><textarea class="form-textarea" name="cocktail_special_requests" placeholder="Any special requests for cocktail hour..."></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(4)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 4: Reception Timeline -->
+            <div class="section-card" id="section4" data-section="4">
+              <div class="section-header" onclick="toggleSection(4)">
+                <div class="section-number" id="sectionNum4">4</div>
+                <h2><i class="fas fa-music mr-2" style="color: var(--primary-red);"></i>Reception & Key Moments</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron4"></i>
+              </div>
+              <div class="section-body" id="sectionBody4">
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Reception Start Time</label><input type="time" class="form-input" name="reception_start_time"></div>
+                  <div class="form-group"><label class="form-label">Grand Entrance Style</label>
+                    <select class="form-select" name="grand_entrance_style">
+                      <option value="">Select...</option><option value="announced">Announced by DJ</option><option value="walk_in">Casual Walk-in</option>
+                      <option value="choreographed">Choreographed Entrance</option><option value="surprise">Surprise Entrance</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">Grand Entrance Song</label><input type="text" class="form-input" name="grand_entrance_song" placeholder="Song - Artist"></div>
+                
+                <h3 style="color: var(--gold); margin: 1.5rem 0 0.8rem; font-size: 1.1rem;"><i class="fas fa-star mr-2"></i>First Dance</h3>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">First Dance Song *</label><input type="text" class="form-input" name="first_dance_song" placeholder="Song - Artist"></div>
+                  <div class="form-group"><label class="form-label">Dance Style</label>
+                    <select class="form-select" name="first_dance_style">
+                      <option value="">Select...</option><option value="traditional">Traditional / Slow</option><option value="choreographed">Choreographed</option>
+                      <option value="mashup">Mashup (slow then upbeat)</option><option value="surprise">Surprise</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">First Dance Notes</label><input type="text" class="form-input" name="first_dance_notes" placeholder="Anything the DJ should know about the first dance?"></div>
+                
+                <h3 style="color: var(--gold); margin: 1.5rem 0 0.8rem; font-size: 1.1rem;"><i class="fas fa-heart mr-2"></i>Parent Dances</h3>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Father/Daughter Dance Song</label><input type="text" class="form-input" name="father_daughter_song" placeholder="Song - Artist"></div>
+                  <div class="form-group"><label class="form-label">Mother/Son Dance Song</label><input type="text" class="form-input" name="mother_son_song" placeholder="Song - Artist"></div>
+                </div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Father/Daughter Notes</label><input type="text" class="form-input" name="father_daughter_notes" placeholder="Any special notes?"></div>
+                  <div class="form-group"><label class="form-label">Mother/Son Notes</label><input type="text" class="form-input" name="mother_son_notes" placeholder="Any special notes?"></div>
+                </div>
+                
+                <h3 style="color: var(--gold); margin: 1.5rem 0 0.8rem; font-size: 1.1rem;"><i class="fas fa-calendar-check mr-2"></i>Special Moments</h3>
+                <div class="form-group"><label class="form-label">Cake Cutting Song</label><input type="text" class="form-input" name="cake_cutting_song" placeholder="Song - Artist"></div>
+                <div class="form-row form-row-2">
+                  <div><div class="checkbox-group"><input type="checkbox" id="bouquetToss" name="bouquet_toss"><label for="bouquetToss">Bouquet Toss</label></div>
+                    <div class="form-group"><label class="form-label">Bouquet Toss Song</label><input type="text" class="form-input" name="bouquet_toss_song" placeholder="Song - Artist"></div></div>
+                  <div><div class="checkbox-group"><input type="checkbox" id="garterToss" name="garter_toss"><label for="garterToss">Garter Toss</label></div>
+                    <div class="form-group"><label class="form-label">Garter Toss Song</label><input type="text" class="form-input" name="garter_toss_song" placeholder="Song - Artist"></div></div>
+                </div>
+                <div class="form-row form-row-2">
+                  <div><div class="checkbox-group"><input type="checkbox" id="moneyDance" name="money_dance"><label for="moneyDance">Money Dance</label></div>
+                    <div class="form-group"><label class="form-label">Money Dance Song</label><input type="text" class="form-input" name="money_dance_song" placeholder="Song - Artist"></div></div>
+                  <div><div class="checkbox-group"><input type="checkbox" id="anniversaryDance" name="anniversary_dance"><label for="anniversaryDance">Anniversary Dance (Longest Married)</label></div></div>
+                </div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">Last Dance Song</label><input type="text" class="form-input" name="last_dance_song" placeholder="Song - Artist"></div>
+                  <div class="form-group"><label class="form-label">Send-Off Song</label><input type="text" class="form-input" name="send_off_song" placeholder="Song - Artist"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Send-Off Style</label>
+                  <select class="form-select" name="send_off_style">
+                    <option value="">Select...</option><option value="sparklers">Sparklers</option><option value="bubbles">Bubbles</option>
+                    <option value="confetti">Confetti</option><option value="lanterns">Lanterns</option><option value="petals">Flower Petals</option>
+                    <option value="none">No Send-Off</option><option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(5)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 5: Bridal Party -->
+            <div class="section-card" id="section5" data-section="5">
+              <div class="section-header" onclick="toggleSection(5)">
+                <div class="section-number" id="sectionNum5">5</div>
+                <h2><i class="fas fa-users mr-2" style="color: var(--primary-red);"></i>Bridal Party</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron5"></i>
+              </div>
+              <div class="section-body" id="sectionBody5">
+                <p class="text-gray-400 text-sm mb-4">List your bridal party members in the order they should be announced during the grand entrance.</p>
+                <div id="bridalPartyList" class="dynamic-list"></div>
+                <button type="button" class="btn-add" onclick="addBridalPartyMember()"><i class="fas fa-plus mr-2"></i>Add Bridal Party Member</button>
+                <div class="form-row form-row-2 mt-4">
+                  <div class="form-group"><label class="form-label">Flower Girl Name</label><input type="text" class="form-input" name="flower_girl_name"></div>
+                  <div class="form-group"><label class="form-label">Ring Bearer Name</label><input type="text" class="form-input" name="ring_bearer_name"></div>
+                </div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(6)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 6: VIP & Family -->
+            <div class="section-card" id="section6" data-section="6">
+              <div class="section-header" onclick="toggleSection(6)">
+                <div class="section-number" id="sectionNum6">6</div>
+                <h2><i class="fas fa-star mr-2" style="color: var(--primary-red);"></i>VIP & Family</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron6"></i>
+              </div>
+              <div class="section-body" id="sectionBody6">
+                <p class="text-gray-400 text-sm mb-4">Important family members to recognize or be aware of.</p>
+                <div id="vipFamilyList" class="dynamic-list"></div>
+                <button type="button" class="btn-add" onclick="addVipMember()"><i class="fas fa-plus mr-2"></i>Add VIP / Family Member</button>
+                <div class="form-group mt-4"><label class="form-label">Memorial Tribute (In memory of...)</label><input type="text" class="form-input" name="memorial_tribute" placeholder="Name(s) of those being remembered"></div>
+                <div class="form-group"><label class="form-label">Memorial Details</label><textarea class="form-textarea" name="memorial_tribute_details" placeholder="How would you like this handled? (moment of silence, reserved seat, candle, etc.)"></textarea></div>
+                <div class="form-group"><label class="form-label">Special Announcements</label><textarea class="form-textarea" name="special_announcements" placeholder="Birthdays, anniversaries, or other announcements at the event?"></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(7)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 7: Music Preferences -->
+            <div class="section-card" id="section7" data-section="7">
+              <div class="section-header" onclick="toggleSection(7)">
+                <div class="section-number" id="sectionNum7">7</div>
+                <h2><i class="fas fa-headphones mr-2" style="color: var(--primary-red);"></i>Music Preferences</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron7"></i>
+              </div>
+              <div class="section-body" id="sectionBody7">
+                <div class="form-group"><label class="form-label">Genres You LOVE (click to select)</label>
+                  <div class="genre-tags" id="genresPreferred">
+                    <span class="genre-tag" data-genre="top40" onclick="toggleGenre(this,'preferred')">Top 40</span>
+                    <span class="genre-tag" data-genre="hiphop" onclick="toggleGenre(this,'preferred')">Hip-Hop</span>
+                    <span class="genre-tag" data-genre="rnb" onclick="toggleGenre(this,'preferred')">R&B</span>
+                    <span class="genre-tag" data-genre="country" onclick="toggleGenre(this,'preferred')">Country</span>
+                    <span class="genre-tag" data-genre="rock" onclick="toggleGenre(this,'preferred')">Rock</span>
+                    <span class="genre-tag" data-genre="pop" onclick="toggleGenre(this,'preferred')">Pop</span>
+                    <span class="genre-tag" data-genre="edm" onclick="toggleGenre(this,'preferred')">EDM / Dance</span>
+                    <span class="genre-tag" data-genre="latin" onclick="toggleGenre(this,'preferred')">Latin</span>
+                    <span class="genre-tag" data-genre="jazz" onclick="toggleGenre(this,'preferred')">Jazz</span>
+                    <span class="genre-tag" data-genre="motown" onclick="toggleGenre(this,'preferred')">Motown / Soul</span>
+                    <span class="genre-tag" data-genre="80s" onclick="toggleGenre(this,'preferred')">80s</span>
+                    <span class="genre-tag" data-genre="90s" onclick="toggleGenre(this,'preferred')">90s</span>
+                    <span class="genre-tag" data-genre="2000s" onclick="toggleGenre(this,'preferred')">2000s</span>
+                    <span class="genre-tag" data-genre="reggae" onclick="toggleGenre(this,'preferred')">Reggae</span>
+                    <span class="genre-tag" data-genre="indie" onclick="toggleGenre(this,'preferred')">Indie</span>
+                    <span class="genre-tag" data-genre="classical" onclick="toggleGenre(this,'preferred')">Classical</span>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">Genres to AVOID</label>
+                  <div class="genre-tags" id="genresAvoid">
+                    <span class="genre-tag" data-genre="top40" onclick="toggleGenre(this,'avoid')">Top 40</span>
+                    <span class="genre-tag" data-genre="hiphop" onclick="toggleGenre(this,'avoid')">Hip-Hop</span>
+                    <span class="genre-tag" data-genre="rnb" onclick="toggleGenre(this,'avoid')">R&B</span>
+                    <span class="genre-tag" data-genre="country" onclick="toggleGenre(this,'avoid')">Country</span>
+                    <span class="genre-tag" data-genre="rock" onclick="toggleGenre(this,'avoid')">Rock</span>
+                    <span class="genre-tag" data-genre="pop" onclick="toggleGenre(this,'avoid')">Pop</span>
+                    <span class="genre-tag" data-genre="edm" onclick="toggleGenre(this,'avoid')">EDM / Dance</span>
+                    <span class="genre-tag" data-genre="latin" onclick="toggleGenre(this,'avoid')">Latin</span>
+                    <span class="genre-tag" data-genre="jazz" onclick="toggleGenre(this,'avoid')">Jazz</span>
+                    <span class="genre-tag" data-genre="motown" onclick="toggleGenre(this,'avoid')">Motown / Soul</span>
+                    <span class="genre-tag" data-genre="reggae" onclick="toggleGenre(this,'avoid')">Reggae</span>
+                    <span class="genre-tag" data-genre="metal" onclick="toggleGenre(this,'avoid')">Metal</span>
+                  </div>
+                </div>
+                
+                <h3 style="color: #22c55e; margin: 1rem 0 0.5rem;"><i class="fas fa-check-circle mr-2"></i>Must-Play Songs</h3>
+                <div id="mustPlayList" class="dynamic-list"></div>
+                <button type="button" class="btn-add" onclick="addMustPlay()"><i class="fas fa-plus mr-2"></i>Add Must-Play Song</button>
+                
+                <h3 style="color: #E31E24; margin: 1rem 0 0.5rem;"><i class="fas fa-ban mr-2"></i>Do NOT Play Songs</h3>
+                <div id="doNotPlayList" class="dynamic-list"></div>
+                <button type="button" class="btn-add" onclick="addDoNotPlay()"><i class="fas fa-plus mr-2"></i>Add Do-Not-Play Song</button>
+                
+                <div class="form-row form-row-2 mt-4">
+                  <div class="form-group"><label class="form-label">Dinner Music Vibe</label>
+                    <select class="form-select" name="dinner_music_vibe">
+                      <option value="">Select...</option><option value="background">Soft Background</option><option value="upbeat">Upbeat Background</option>
+                      <option value="jazz">Jazz / Lounge</option><option value="acoustic">Acoustic</option><option value="no_preference">No Preference</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label class="form-label">Dance Floor Energy Level</label>
+                    <select class="form-select" name="dance_floor_energy">
+                      <option value="">Select...</option><option value="low">Low / Chill</option><option value="medium">Medium / Mix</option>
+                      <option value="high">High Energy</option><option value="insane">INSANE - Non-Stop Party!</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="checkbox-group"><input type="checkbox" id="cleanOnly" name="clean_music_only"><label for="cleanOnly">Clean music only (no explicit lyrics)</label></div>
+                <div class="form-group"><label class="form-label">Additional Music Notes</label><textarea class="form-textarea" name="music_notes" placeholder="Anything else about music preferences..."></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(8)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 8: Toasts & Speeches -->
+            <div class="section-card" id="section8" data-section="8">
+              <div class="section-header" onclick="toggleSection(8)">
+                <div class="section-number" id="sectionNum8">8</div>
+                <h2><i class="fas fa-glass-cheers mr-2" style="color: var(--primary-red);"></i>Toasts & Speeches</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron8"></i>
+              </div>
+              <div class="section-body" id="sectionBody8">
+                <div id="toastSpeakersList" class="dynamic-list"></div>
+                <button type="button" class="btn-add" onclick="addToastSpeaker()"><i class="fas fa-plus mr-2"></i>Add Toast Speaker</button>
+                <div class="form-row form-row-2 mt-4">
+                  <div class="form-group"><label class="form-label">Mic Preference</label>
+                    <select class="form-select" name="toast_mic_preference">
+                      <option value="">Select...</option><option value="wireless">Wireless Mic</option><option value="podium">Podium / Stand</option><option value="dj_announces">DJ Announces Them</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label class="form-label">Time Limit per Speaker</label>
+                    <select class="form-select" name="toast_time_limit">
+                      <option value="">No Limit</option><option value="3">3 Minutes</option><option value="5">5 Minutes</option><option value="10">10 Minutes</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(9)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 9: Logistics -->
+            <div class="section-card" id="section9" data-section="9">
+              <div class="section-header" onclick="toggleSection(9)">
+                <div class="section-number" id="sectionNum9">9</div>
+                <h2><i class="fas fa-cog mr-2" style="color: var(--primary-red);"></i>Logistics & Setup</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron9"></i>
+              </div>
+              <div class="section-body" id="sectionBody9">
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">DJ Setup Time</label><input type="time" class="form-input" name="dj_setup_time"></div>
+                  <div class="form-group"><label class="form-label">Indoor / Outdoor</label>
+                    <select class="form-select" name="indoor_outdoor">
+                      <option value="">Select...</option><option value="indoor">Indoor</option><option value="outdoor">Outdoor</option><option value="both">Both</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">Power Location Notes</label><input type="text" class="form-input" name="power_location" placeholder="Where are outlets? Extension cords needed?"></div>
+                <div class="form-group"><label class="form-label">Rain Plan (if outdoor)</label><input type="text" class="form-input" name="rain_plan" placeholder="Move inside? Tent?"></div>
+                <div class="form-row form-row-2">
+                  <div class="form-group"><label class="form-label">DJ Placement</label><input type="text" class="form-input" name="dj_placement" placeholder="Where should DJ set up?"></div>
+                  <div class="form-group"><label class="form-label">Dance Floor Size</label>
+                    <select class="form-select" name="dance_floor_size">
+                      <option value="">Select...</option><option value="small">Small (under 50 guests)</option><option value="medium">Medium (50-150 guests)</option><option value="large">Large (150+ guests)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group"><label class="form-label">Lighting Notes</label><textarea class="form-textarea" name="lighting_notes" placeholder="String lights? Dim the lights for dances? Spotlight?"></textarea></div>
+                <div class="text-right mt-4"><button type="button" class="btn btn-next" onclick="goToSection(10)">Next <i class="fas fa-arrow-right ml-2"></i></button></div>
+              </div>
+            </div>
+            
+            <!-- SECTION 10: Add-ons & Extras -->
+            <div class="section-card" id="section10" data-section="10">
+              <div class="section-header" onclick="toggleSection(10)">
+                <div class="section-number" id="sectionNum10">10</div>
+                <h2><i class="fas fa-magic mr-2" style="color: var(--primary-red);"></i>Add-ons & Other Vendors</h2>
+                <i class="fas fa-chevron-down text-gray-500" id="chevron10"></i>
+              </div>
+              <div class="section-body" id="sectionBody10">
+                <div class="checkbox-group"><input type="checkbox" id="wantsUplighting" name="wants_uplighting"><label for="wantsUplighting">Uplighting ($100/event)</label></div>
+                <div class="form-group"><label class="form-label">Uplighting Color</label><input type="text" class="form-input" name="uplighting_color" placeholder="e.g., Blush pink, Navy, Gold, Match your colors"></div>
+                <div class="checkbox-group"><input type="checkbox" id="wantsKaraoke" name="wants_karaoke"><label for="wantsKaraoke">Karaoke Add-on ($100/event)</label></div>
+                <div class="checkbox-group"><input type="checkbox" id="wantsFog" name="wants_fog_machine"><label for="wantsFog">Fog Machine</label></div>
+                <div class="checkbox-group"><input type="checkbox" id="wantsPhotobooth" name="wants_photobooth"><label for="wantsPhotobooth">Photobooth Coordination</label></div>
+                <div class="form-group"><label class="form-label">Photobooth Notes</label><textarea class="form-textarea" name="photobooth_coordination_notes" placeholder="Timing, placement, coordination with DJ..."></textarea></div>
+                <div class="form-group"><label class="form-label">Other Vendors (Photographer, Videographer, Coordinator)</label><textarea class="form-textarea" name="other_vendors" placeholder="List names so DJ can coordinate with them"></textarea></div>
+                
+                <div class="text-center mt-8" style="border-top: 2px solid #333; padding-top: 2rem;">
+                  <p class="text-gray-400 mb-4">Ready to submit? You can also save and come back later.</p>
+                  <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-save" onclick="saveProgress()"><i class="fas fa-save mr-2"></i>Save Progress</button>
+                    <button type="submit" class="btn btn-submit"><i class="fas fa-paper-plane mr-2"></i>Submit Form</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            </form>
+            
+            <!-- Floating Save Button -->
+            <div style="position: fixed; bottom: 20px; right: 20px; z-index: 9998;">
+              <button onclick="saveProgress()" class="btn btn-save" style="border-radius: 50%; width: 55px; height: 55px; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <i class="fas fa-save" style="font-size: 1.2rem;"></i>
+              </button>
+            </div>
+        </div>
+        
+        <script>
+          const BOOKING_ID = '${bookingId}';
+          const TOTAL_SECTIONS = 10;
+          let currentSection = 1;
+          let formData = {};
+          let bridalParty = [];
+          let vipFamily = [];
+          let mustPlaySongs = [];
+          let doNotPlaySongs = [];
+          let toastSpeakers = [];
+          let selectedGenresPreferred = [];
+          let selectedGenresAvoid = [];
+          
+          // Initialize
+          window.addEventListener('DOMContentLoaded', async () => {
+            buildNavDots();
+            await loadExistingData();
+            updateProgress();
+          });
+          
+          function buildNavDots() {
+            const container = document.getElementById('navDots');
+            for (let i = 1; i <= TOTAL_SECTIONS; i++) {
+              const dot = document.createElement('div');
+              dot.className = 'nav-dot' + (i === 1 ? ' active' : '');
+              dot.id = 'navDot' + i;
+              dot.title = 'Section ' + i;
+              dot.onclick = () => goToSection(i);
+              container.appendChild(dot);
+            }
+          }
+          
+          async function loadExistingData() {
+            try {
+              const resp = await fetch('/api/wedding-form/' + BOOKING_ID);
+              const data = await resp.json();
+              if (data.success && data.form) {
+                const f = data.form;
+                // Populate text/select inputs
+                document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], input[type="time"], select, textarea').forEach(el => {
+                  if (el.name && f[el.name] !== undefined && f[el.name] !== null) {
+                    el.value = f[el.name];
+                  }
+                });
+                // Populate checkboxes
+                document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+                  if (el.name && f[el.name] !== undefined) {
+                    el.checked = !!f[el.name];
+                  }
+                });
+                // Populate dynamic lists
+                if (f.bridal_party_json) { try { bridalParty = JSON.parse(f.bridal_party_json); renderBridalParty(); } catch(e){} }
+                if (f.vip_family_json) { try { vipFamily = JSON.parse(f.vip_family_json); renderVipFamily(); } catch(e){} }
+                if (f.must_play_songs) { try { mustPlaySongs = JSON.parse(f.must_play_songs); renderMustPlay(); } catch(e){} }
+                if (f.do_not_play_songs) { try { doNotPlaySongs = JSON.parse(f.do_not_play_songs); renderDoNotPlay(); } catch(e){} }
+                if (f.toast_speakers_json) { try { toastSpeakers = JSON.parse(f.toast_speakers_json); renderToastSpeakers(); } catch(e){} }
+                if (f.music_genres_preferred) { try { selectedGenresPreferred = JSON.parse(f.music_genres_preferred); restoreGenres('preferred'); } catch(e){} }
+                if (f.music_genres_avoid) { try { selectedGenresAvoid = JSON.parse(f.music_genres_avoid); restoreGenres('avoid'); } catch(e){} }
+                
+                // Go to last saved section
+                if (f.last_saved_section) {
+                  const sec = parseInt(f.last_saved_section);
+                  if (sec > 0 && sec <= TOTAL_SECTIONS) goToSection(sec);
+                }
+              }
+            } catch (err) { console.error('Failed to load form data:', err); }
+          }
+          
+          function restoreGenres(type) {
+            const arr = type === 'preferred' ? selectedGenresPreferred : selectedGenresAvoid;
+            const containerId = type === 'preferred' ? 'genresPreferred' : 'genresAvoid';
+            document.querySelectorAll('#' + containerId + ' .genre-tag').forEach(tag => {
+              if (arr.includes(tag.dataset.genre)) tag.classList.add('selected');
+            });
+          }
+          
+          function toggleSection(num) {
+            const body = document.getElementById('sectionBody' + num);
+            const isOpen = body.classList.contains('open');
+            // Close all
+            for (let i = 1; i <= TOTAL_SECTIONS; i++) {
+              document.getElementById('sectionBody' + i).classList.remove('open');
+              document.getElementById('section' + i).classList.remove('active');
+            }
+            if (!isOpen) {
+              body.classList.add('open');
+              document.getElementById('section' + num).classList.add('active');
+              currentSection = num;
+              updateNavDots();
+            }
+          }
+          
+          function goToSection(num) {
+            toggleSection(num);
+            document.getElementById('section' + num).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          
+          function updateNavDots() {
+            for (let i = 1; i <= TOTAL_SECTIONS; i++) {
+              const dot = document.getElementById('navDot' + i);
+              dot.classList.remove('active');
+              if (i === currentSection) dot.classList.add('active');
+            }
+          }
+          
+          function updateProgress() {
+            let filled = 0;
+            let total = 0;
+            document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], select, textarea').forEach(el => {
+              if (el.name) { total++; if (el.value.trim()) filled++; }
+            });
+            const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('progressText').textContent = pct + '% Complete';
+          }
+          
+          function collectFormData() {
+            const data = { form_status: 'in_progress', last_saved_section: currentSection.toString() };
+            document.querySelectorAll('input[type="text"], input[type="tel"], input[type="email"], input[type="time"], select, textarea').forEach(el => {
+              if (el.name) data[el.name] = el.value;
+            });
+            document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+              if (el.name) data[el.name] = el.checked;
+            });
+            data.bridal_party_json = JSON.stringify(bridalParty);
+            data.vip_family_json = JSON.stringify(vipFamily);
+            data.must_play_songs = JSON.stringify(mustPlaySongs);
+            data.do_not_play_songs = JSON.stringify(doNotPlaySongs);
+            data.toast_speakers_json = JSON.stringify(toastSpeakers);
+            data.music_genres_preferred = JSON.stringify(selectedGenresPreferred);
+            data.music_genres_avoid = JSON.stringify(selectedGenresAvoid);
+            return data;
+          }
+          
+          async function saveProgress() {
+            const data = collectFormData();
+            try {
+              const resp = await fetch('/api/wedding-form/' + BOOKING_ID, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              const result = await resp.json();
+              if (result.success) {
+                const indicator = document.getElementById('saveIndicator');
+                indicator.style.display = 'block';
+                setTimeout(() => { indicator.style.display = 'none'; }, 2000);
+              }
+            } catch (err) { console.error('Save error:', err); }
+            updateProgress();
+          }
+          
+          // Form submission
+          document.getElementById('weddingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = collectFormData();
+            data.form_status = 'completed';
+            
+            try {
+              const resp = await fetch('/api/wedding-form/' + BOOKING_ID, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+              });
+              const result = await resp.json();
+              if (result.success) {
+                document.getElementById('successOverlay').style.display = 'flex';
+              }
+            } catch (err) { console.error('Submit error:', err); }
+          });
+          
+          // Genre toggling
+          function toggleGenre(el, type) {
+            const genre = el.dataset.genre;
+            const arr = type === 'preferred' ? selectedGenresPreferred : selectedGenresAvoid;
+            const idx = arr.indexOf(genre);
+            if (idx > -1) { arr.splice(idx, 1); el.classList.remove('selected'); }
+            else { arr.push(genre); el.classList.add('selected'); }
+          }
+          
+          // Dynamic list helpers
+          function addBridalPartyMember() { bridalParty.push({name:'',role:'',partner_name:''}); renderBridalParty(); }
+          function removeBridalParty(i) { bridalParty.splice(i,1); renderBridalParty(); }
+          function renderBridalParty() {
+            const list = document.getElementById('bridalPartyList');
+            list.innerHTML = bridalParty.map((m,i) => '<div class="dynamic-item"><select class="form-select" style="max-width:140px" onchange="bridalParty['+i+'].role=this.value"><option value="">Role</option><option value="Best Man"'+(m.role==='Best Man'?' selected':'')+'>Best Man</option><option value="Maid of Honor"'+(m.role==='Maid of Honor'?' selected':'')+'>Maid of Honor</option><option value="Groomsman"'+(m.role==='Groomsman'?' selected':'')+'>Groomsman</option><option value="Bridesmaid"'+(m.role==='Bridesmaid'?' selected':'')+'>Bridesmaid</option><option value="Usher"'+(m.role==='Usher'?' selected':'')+'>Usher</option><option value="Other"'+(m.role==='Other'?' selected':'')+'>Other</option></select><input type="text" class="form-input" placeholder="Name" value="'+(m.name||'')+'" onchange="bridalParty['+i+'].name=this.value"><input type="text" class="form-input" placeholder="Escorted by / Partner" value="'+(m.partner_name||'')+'" onchange="bridalParty['+i+'].partner_name=this.value"><button type="button" class="btn-remove" onclick="removeBridalParty('+i+')"><i class="fas fa-times"></i></button></div>').join('');
+          }
+          
+          function addVipMember() { vipFamily.push({name:'',relationship:'',special_note:''}); renderVipFamily(); }
+          function removeVip(i) { vipFamily.splice(i,1); renderVipFamily(); }
+          function renderVipFamily() {
+            const list = document.getElementById('vipFamilyList');
+            list.innerHTML = vipFamily.map((m,i) => '<div class="dynamic-item"><input type="text" class="form-input" placeholder="Name" value="'+(m.name||'')+'" onchange="vipFamily['+i+'].name=this.value"><input type="text" class="form-input" placeholder="Relationship" value="'+(m.relationship||'')+'" onchange="vipFamily['+i+'].relationship=this.value"><input type="text" class="form-input" placeholder="Special note" value="'+(m.special_note||'')+'" onchange="vipFamily['+i+'].special_note=this.value"><button type="button" class="btn-remove" onclick="removeVip('+i+')"><i class="fas fa-times"></i></button></div>').join('');
+          }
+          
+          function addMustPlay() { mustPlaySongs.push({song:'',artist:'',moment:''}); renderMustPlay(); }
+          function removeMustPlay(i) { mustPlaySongs.splice(i,1); renderMustPlay(); }
+          function renderMustPlay() {
+            const list = document.getElementById('mustPlayList');
+            list.innerHTML = mustPlaySongs.map((s,i) => '<div class="dynamic-item"><input type="text" class="form-input" placeholder="Song Name" value="'+(s.song||'')+'" onchange="mustPlaySongs['+i+'].song=this.value"><input type="text" class="form-input" placeholder="Artist" value="'+(s.artist||'')+'" onchange="mustPlaySongs['+i+'].artist=this.value"><input type="text" class="form-input" placeholder="When? (optional)" value="'+(s.moment||'')+'" onchange="mustPlaySongs['+i+'].moment=this.value"><button type="button" class="btn-remove" onclick="removeMustPlay('+i+')"><i class="fas fa-times"></i></button></div>').join('');
+          }
+          
+          function addDoNotPlay() { doNotPlaySongs.push({song:'',artist:'',reason:''}); renderDoNotPlay(); }
+          function removeDoNotPlay(i) { doNotPlaySongs.splice(i,1); renderDoNotPlay(); }
+          function renderDoNotPlay() {
+            const list = document.getElementById('doNotPlayList');
+            list.innerHTML = doNotPlaySongs.map((s,i) => '<div class="dynamic-item"><input type="text" class="form-input" placeholder="Song Name" value="'+(s.song||'')+'" onchange="doNotPlaySongs['+i+'].song=this.value"><input type="text" class="form-input" placeholder="Artist" value="'+(s.artist||'')+'" onchange="doNotPlaySongs['+i+'].artist=this.value"><input type="text" class="form-input" placeholder="Reason (optional)" value="'+(s.reason||'')+'" onchange="doNotPlaySongs['+i+'].reason=this.value"><button type="button" class="btn-remove" onclick="removeDoNotPlay('+i+')"><i class="fas fa-times"></i></button></div>').join('');
+          }
+          
+          function addToastSpeaker() { toastSpeakers.push({name:'',role:'',order:toastSpeakers.length+1}); renderToastSpeakers(); }
+          function removeToast(i) { toastSpeakers.splice(i,1); renderToastSpeakers(); }
+          function renderToastSpeakers() {
+            const list = document.getElementById('toastSpeakersList');
+            list.innerHTML = toastSpeakers.map((s,i) => '<div class="dynamic-item"><span style="color:#FFD700;font-weight:bold;width:25px;">#'+(i+1)+'</span><input type="text" class="form-input" placeholder="Speaker Name" value="'+(s.name||'')+'" onchange="toastSpeakers['+i+'].name=this.value"><input type="text" class="form-input" placeholder="Role (Best Man, MOH, etc.)" value="'+(s.role||'')+'" onchange="toastSpeakers['+i+'].role=this.value"><button type="button" class="btn-remove" onclick="removeToast('+i+')"><i class="fas fa-times"></i></button></div>').join('');
+          }
+          
+          // Auto-save every 60 seconds
+          setInterval(saveProgress, 60000);
+          
+          // Track progress on input change
+          document.addEventListener('input', () => { updateProgress(); });
         </script>
     </body>
     </html>

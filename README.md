@@ -13,12 +13,23 @@
 - **Last Deploy**: January 15, 2026 - ✅ Complete Stripe Integration
 
 ## 💳 Stripe Integration Status
-- **Account**: Elev8ai.org (acct_1SfiL9FSpkhICUyS)
-- **Mode**: Test Mode (`sk_test_...`)
+- **Current Account**: Brad Powell (acct_1SURzgFSfYQ6chIH)
+- **Email**: bradgpowell1123@gmail.com
+- **Mode**: Test Mode (using test keys)
 - **Products**: 12 products configured
 - **Charges Enabled**: ✅ Yes
 - **Payouts Enabled**: ✅ Yes
-- **Payment Intents**: ✅ Working (real `pi_3SpnV3...` intents)
+- **Payment Intents**: ✅ Working
+
+### Stripe Account History (For Future Reference)
+| Account | Account ID | Email | Status |
+|---------|------------|-------|--------|
+| **Brad Powell (ACTIVE)** | acct_1SURzgFSfYQ6chIH | bradgpowell1123@gmail.com | ✅ Currently in use |
+| Elev8ai.org (ARCHIVED) | acct_1SfiL9FSpkhICUyS | (original setup) | ⏸️ Stored for client |
+
+**Note**: When client provides their Stripe keys, update both:
+- `STRIPE_SECRET_KEY` - Backend API calls
+- `STRIPE_PUBLISHABLE_KEY` - Frontend payment form
 
 ### Stripe Products (12 Total)
 | Service | Base Price | Additional Hour |
