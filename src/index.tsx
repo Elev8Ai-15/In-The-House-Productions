@@ -32,18 +32,14 @@ import {
   generateFocusStyles,
   generateAccessibilityJS
 } from './accessibility-helpers'
-
-type Bindings = {
-  DB: D1Database
-  JWT_SECRET?: string
-  STRIPE_SECRET_KEY?: string
-  RESEND_API_KEY?: string
-  TWILIO_ACCOUNT_SID?: string
-  TWILIO_AUTH_TOKEN?: string
-  TWILIO_PHONE_NUMBER?: string
-  REFERSION_PUBLIC_KEY?: string
-  REFERSION_SECRET_KEY?: string
-}
+import { requireAdmin, requireAuth } from './middleware/admin-auth'
+import { csrfProtection } from './middleware/csrf'
+import { d1RateLimit } from './middleware/d1-rate-limit'
+import passwordResetRoutes from './routes/password-reset'
+import emailVerificationRoutes from './routes/email-verification'
+import cancellationRoutes from './routes/cancellation'
+import { generateImageObserverScript, generateImageOptimizationCSS } from './helpers/image-optimizer'
+import type { Bindings } from './types'
 
 // ===== REFERSION AFFILIATE TRACKING INTEGRATION =====
 // Documentation: https://www.refersion.dev/reference/javascript-v4-tracking
@@ -121,15 +117,27 @@ app.use('*', securityHeaders)
 // Enable CORS
 app.use('/api/*', cors())
 
+// CSRF protection for state-changing requests
+app.use('/api/*', csrfProtection)
+
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
-// Add rate limiting to authentication endpoints
-app.use('/api/auth/login', rateLimit(5, 60000, 15)) // 5 requests per minute, lockout after 15 failures
-app.use('/api/auth/register', rateLimit(3, 60000)) // 3 registrations per minute
+// D1-backed rate limiting with progressive lockout
+app.use('/api/auth/login', d1RateLimit(5, 60000, 15)) // 5 requests per minute, lockout after 15 failures
+app.use('/api/auth/register', d1RateLimit(3, 60000)) // 3 registrations per minute
+app.use('/api/auth/forgot-password', d1RateLimit(3, 300000)) // 3 resets per 5 minutes
 
 // Add rate limiting to API endpoints
-app.use('/api/*', rateLimit(100, 60000)) // 100 requests per minute for general API
+app.use('/api/*', d1RateLimit(100, 60000)) // 100 requests per minute for general API
+
+// Admin route protection - require JWT with admin role
+app.use('/api/admin/*', requireAdmin)
+
+// Mount new feature routes
+app.route('/', passwordResetRoutes)
+app.route('/', emailVerificationRoutes)
+app.route('/', cancellationRoutes)
 
 // SEO Routes
 // Favicon - inline SVG to prevent 404
@@ -357,8 +365,8 @@ app.post('/api/setup/reset-admin', async (c) => {
     const body = await c.req.json()
     const { email, new_password, setup_key } = body
     
-    // Require setup key for security
-    const SETUP_KEY = 'InTheHouse2026!'
+    // Require setup key from environment (falls back to default for backwards compat)
+    const SETUP_KEY = c.env?.SETUP_KEY || 'InTheHouse2026!'
     if (setup_key !== SETUP_KEY) {
       return c.json({ error: 'Invalid setup key' }, 403)
     }
@@ -425,7 +433,7 @@ app.post('/api/setup/reset-employees', async (c) => {
     const body = await c.req.json()
     const { setup_key } = body
     
-    const SETUP_KEY = 'InTheHouse2026!'
+    const SETUP_KEY = c.env?.SETUP_KEY || 'InTheHouse2026!'
     if (setup_key !== SETUP_KEY) {
       return c.json({ error: 'Invalid setup key' }, 403)
     }
@@ -433,8 +441,8 @@ app.post('/api/setup/reset-employees', async (c) => {
     // Get all employees
     const employees = await DB.prepare(`SELECT id, email, full_name FROM employees WHERE is_active = 1`).all()
     
-    // Hash the default password with PBKDF2
-    const defaultPassword = 'Employee123!'
+    // Hash the default password with PBKDF2 (from env or fallback)
+    const defaultPassword = c.env?.DEFAULT_EMPLOYEE_PASSWORD || 'Employee123!'
     const newHash = await hashPassword(defaultPassword)
     
     // Update all employees with the new PBKDF2 hash
@@ -471,8 +479,8 @@ app.post('/api/setup/admin', async (c) => {
     const body = await c.req.json()
     const { full_name, email, phone, password, setup_key } = body
     
-    // Require setup key for security (can be changed or removed in production)
-    const SETUP_KEY = 'InTheHouse2026!'
+    // Require setup key from environment (can be changed or removed in production)
+    const SETUP_KEY = c.env?.SETUP_KEY || 'InTheHouse2026!'
     if (setup_key !== SETUP_KEY) {
       return c.json({ error: 'Invalid setup key' }, 403)
     }
@@ -664,8 +672,8 @@ app.post('/api/setup/stripe-products', async (c) => {
     const body = await c.req.json()
     const { setup_key } = body
     
-    // Require setup key for security
-    const SETUP_KEY = 'InTheHouse2026!'
+    // Require setup key from environment
+    const SETUP_KEY = c.env?.SETUP_KEY || 'InTheHouse2026!'
     if (setup_key !== SETUP_KEY) {
       return c.json({ error: 'Invalid setup key' }, 403)
     }
@@ -6680,9 +6688,9 @@ app.get('/login', (c) => {
                 <div><label class="block text-chrome-silver mb-2"><i class="fas fa-lock mr-2"></i>Password</label><input type="password" id="password" required class="input-field w-full px-4 py-3 rounded" placeholder="Enter your password" /></div>
                 <button type="submit" class="btn-red w-full py-3 rounded font-bold text-lg"><i class="fas fa-sign-in-alt mr-2"></i>SIGN IN</button>
             </form>
-            <div class="mt-6 text-center"><p class="text-chrome-silver">Don't have an account? <a href="/register" class="text-primary-red hover:text-accent-neon transition-colors">Register Now</a></p></div>
+            <div class="mt-4 text-center"><a href="/forgot-password" class="text-gray-500 hover:text-red-400 transition-colors text-sm"><i class="fas fa-lock mr-1"></i>Forgot Password?</a></div>
+            <div class="mt-4 text-center"><p class="text-chrome-silver">Don't have an account? <a href="/register" class="text-primary-red hover:text-accent-neon transition-colors">Register Now</a></p></div>
             <div class="mt-4 text-center"><a href="/" class="text-chrome-silver hover:text-white transition-colors"><i class="fas fa-arrow-left mr-2"></i>Back to Home</a></div>
-            <div class="mt-6 text-center text-sm text-gray-500"><p>Testing? Use admin@inthehouseproductions.com / Admin123!</p></div>
         </div>
     </div>
     <script>
@@ -6742,6 +6750,190 @@ app.get('/login', (c) => {
           submitBtn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>SIGN IN';
         }
       });
+    </script>
+</body>
+</html>`)
+})
+
+// Password Reset Page
+app.get('/forgot-password', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password - In The House Productions</title>
+    ${generateRefersionTrackingScript(refersionKey)}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/ultra-3d.css" rel="stylesheet">
+    <style>
+      body { background: #000; color: #fff; font-family: 'Arial', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .form-card { background: linear-gradient(145deg, #1a0000, #0a0a0a); border: 3px solid #E31E24; border-radius: 20px; padding: 2.5rem; width: 100%; max-width: 440px; box-shadow: 0 0 40px rgba(227, 30, 36, 0.3); }
+      .form-input { width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 8px; color: #fff; font-size: 1rem; }
+      .form-input:focus { outline: none; border-color: #E31E24; box-shadow: 0 0 15px rgba(227,30,36,0.3); }
+      .btn-submit { width: 100%; padding: 0.85rem; background: linear-gradient(135deg, #E31E24, #FF0040); color: #fff; border: none; border-radius: 50px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s; }
+      .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(227,30,36,0.5); }
+    </style>
+</head>
+<body>
+    <div class="form-card">
+        <div class="text-center mb-6">
+            <i class="fas fa-lock text-5xl text-red-500 mb-3"></i>
+            <h1 class="text-2xl font-bold" style="color: #FFD700;">Forgot Password?</h1>
+            <p class="text-gray-400 mt-2 text-sm">Enter your email and we'll send you a reset link.</p>
+        </div>
+        <form id="forgotForm">
+            <div class="mb-4">
+                <label class="block text-gray-400 text-sm font-bold mb-2">Email Address</label>
+                <input type="email" id="email" class="form-input" placeholder="your@email.com" required>
+            </div>
+            <div id="message" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+            <button type="submit" id="submitBtn" class="btn-submit">
+                <i class="fas fa-paper-plane mr-2"></i>SEND RESET LINK
+            </button>
+        </form>
+        <div class="text-center mt-4">
+            <a href="/login" class="text-gray-500 hover:text-white text-sm"><i class="fas fa-arrow-left mr-1"></i>Back to Login</a>
+        </div>
+    </div>
+    <script>
+        document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('message');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>SENDING...';
+            try {
+                const resp = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: document.getElementById('email').value })
+                });
+                const data = await resp.json();
+                msg.classList.remove('hidden', 'bg-red-900', 'text-red-300');
+                msg.classList.add('bg-green-900', 'text-green-300');
+                msg.textContent = data.message || 'Check your email for the reset link.';
+            } catch (err) {
+                msg.classList.remove('hidden', 'bg-green-900', 'text-green-300');
+                msg.classList.add('bg-red-900', 'text-red-300');
+                msg.textContent = 'Something went wrong. Please try again.';
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>SEND RESET LINK';
+        });
+    </script>
+</body>
+</html>`)
+})
+
+// Reset Password Page (with token from email)
+app.get('/reset-password', (c) => {
+  const refersionKey = c.env.REFERSION_PUBLIC_KEY
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password - In The House Productions</title>
+    ${generateRefersionTrackingScript(refersionKey)}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+      body { background: #000; color: #fff; font-family: 'Arial', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .form-card { background: linear-gradient(145deg, #1a0000, #0a0a0a); border: 3px solid #E31E24; border-radius: 20px; padding: 2.5rem; width: 100%; max-width: 440px; box-shadow: 0 0 40px rgba(227, 30, 36, 0.3); }
+      .form-input { width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 8px; color: #fff; font-size: 1rem; }
+      .form-input:focus { outline: none; border-color: #E31E24; }
+      .btn-submit { width: 100%; padding: 0.85rem; background: linear-gradient(135deg, #E31E24, #FF0040); color: #fff; border: none; border-radius: 50px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="form-card">
+        <div class="text-center mb-6">
+            <i class="fas fa-key text-5xl text-yellow-500 mb-3"></i>
+            <h1 class="text-2xl font-bold" style="color: #FFD700;">Set New Password</h1>
+        </div>
+        <form id="resetForm">
+            <div class="mb-4">
+                <label class="block text-gray-400 text-sm font-bold mb-2">New Password</label>
+                <input type="password" id="password" class="form-input" placeholder="Min 8 chars, 1 uppercase, 1 number" required minlength="8">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-400 text-sm font-bold mb-2">Confirm Password</label>
+                <input type="password" id="confirmPassword" class="form-input" placeholder="Re-enter password" required>
+            </div>
+            <div id="message" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+            <button type="submit" id="submitBtn" class="btn-submit"><i class="fas fa-check mr-2"></i>RESET PASSWORD</button>
+        </form>
+    </div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        const email = params.get('email');
+        if (!token || !email) {
+            document.getElementById('message').classList.remove('hidden');
+            document.getElementById('message').classList.add('bg-red-900', 'text-red-300');
+            document.getElementById('message').textContent = 'Invalid reset link. Please request a new one.';
+            document.getElementById('submitBtn').disabled = true;
+        }
+        document.getElementById('resetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pw = document.getElementById('password').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const msg = document.getElementById('message');
+            if (pw !== confirm) { msg.classList.remove('hidden'); msg.className = 'mb-4 p-3 rounded-lg text-sm bg-red-900 text-red-300'; msg.textContent = 'Passwords do not match'; return; }
+            try {
+                const resp = await fetch('/api/auth/reset-password', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, token, new_password: pw })
+                });
+                const data = await resp.json();
+                msg.classList.remove('hidden');
+                if (data.success) {
+                    msg.className = 'mb-4 p-3 rounded-lg text-sm bg-green-900 text-green-300';
+                    msg.textContent = 'Password reset! Redirecting to login...';
+                    setTimeout(() => window.location.href = '/login', 2000);
+                } else {
+                    msg.className = 'mb-4 p-3 rounded-lg text-sm bg-red-900 text-red-300';
+                    msg.textContent = data.error || 'Failed to reset password';
+                }
+            } catch { msg.classList.remove('hidden'); msg.className = 'mb-4 p-3 rounded-lg text-sm bg-red-900 text-red-300'; msg.textContent = 'Something went wrong.'; }
+        });
+    </script>
+</body>
+</html>`)
+})
+
+// Email Verification Page
+app.get('/verify-email', (c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - In The House Productions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body { background: #000; color: #fff; font-family: Arial; min-height: 100vh; display: flex; align-items: center; justify-content: center; }</style>
+</head>
+<body>
+    <div class="text-center" id="content"><i class="fas fa-spinner fa-spin text-5xl text-red-500 mb-4"></i><p class="text-gray-400">Verifying your email...</p></div>
+    <script>
+        (async () => {
+            const params = new URLSearchParams(location.search);
+            const el = document.getElementById('content');
+            try {
+                const resp = await fetch('/api/auth/verify-email', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: params.get('email'), token: params.get('token') })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    el.innerHTML = '<div style="font-size:5rem;">&#10003;</div><h1 class="text-3xl font-bold text-green-400 mt-4">Email Verified!</h1><p class="text-gray-400 mt-2">Your email has been verified. You can now use all features.</p><a href="/" class="inline-block mt-6 px-8 py-3 bg-red-600 text-white rounded-full font-bold">Go to Home</a>';
+                } else {
+                    el.innerHTML = '<div style="font-size:5rem; color: #E31E24;">&#10007;</div><h1 class="text-3xl font-bold text-red-400 mt-4">Verification Failed</h1><p class="text-gray-400 mt-2">' + (data.error || 'Invalid or expired token') + '</p><a href="/" class="inline-block mt-6 px-8 py-3 bg-gray-700 text-white rounded-full font-bold">Go to Home</a>';
+                }
+            } catch { el.innerHTML = '<p class="text-red-400">Something went wrong. Please try again.</p>'; }
+        })();
     </script>
 </body>
 </html>`)
@@ -9399,6 +9591,41 @@ app.post('/api/invoices/auto-generate', async (c) => {
     }
     
     return c.json({ success: true, generated: generated.length, invoiceNumbers: generated })
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Admin: Fix orphaned bookings missing event_details
+app.post('/api/admin/fix-event-details', async (c) => {
+  try {
+    const { DB } = c.env
+    
+    // Find bookings without event_details
+    const orphaned = await DB.prepare(`
+      SELECT b.id, b.service_type, b.service_provider, b.event_date, b.event_start_time, b.event_end_time
+      FROM bookings b
+      LEFT JOIN event_details ed ON b.id = ed.booking_id
+      WHERE ed.id IS NULL
+    `).all()
+    
+    let fixed = 0
+    for (const booking of (orphaned.results || []) as any[]) {
+      await DB.prepare(`
+        INSERT INTO event_details (
+          booking_id, event_name, event_type, 
+          street_address, city, state, zip_code,
+          number_of_guests, special_requests, created_at
+        ) VALUES (?, ?, ?, '', '', '', '', 0, 'Auto-generated: original event details missing', datetime('now'))
+      `).bind(
+        booking.id,
+        `${booking.service_type} Event - ${booking.event_date}`,
+        booking.service_type || 'party'
+      ).run()
+      fixed++
+    }
+    
+    return c.json({ success: true, fixed, orphanedCount: orphaned.results?.length || 0 })
   } catch (error: any) {
     return c.json({ success: false, error: error.message }, 500)
   }
