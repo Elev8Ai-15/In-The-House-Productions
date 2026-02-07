@@ -134,6 +134,16 @@ app.use('/api/auth/register', rateLimit(3, 60000)) // 3 registrations per minute
 app.use('/api/*', rateLimit(100, 60000)) // 100 requests per minute for general API
 
 // SEO Routes
+// Favicon - inline SVG to prevent 404
+app.get('/favicon.ico', (c) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="4" fill="#E31E24"/><text x="16" y="24" text-anchor="middle" font-size="22" font-weight="bold" fill="white" font-family="Arial">H</text></svg>`
+  const svgBase64 = btoa(svg)
+  const binary = atob(svgBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Response(bytes, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } })
+})
+
 app.get('/robots.txt', (c) => {
   return c.text(generateRobotsTxt())
 })
@@ -406,6 +416,43 @@ app.post('/api/setup/reset-admin', async (c) => {
   } catch (error: any) {
     console.error('Admin password reset error:', error)
     return c.json({ error: 'Password reset failed', details: error.message }, 500)
+  }
+})
+
+// Reset employee passwords (converts bcrypt seeds to PBKDF2)
+app.post('/api/setup/reset-employees', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.json()
+    const { setup_key } = body
+    
+    const SETUP_KEY = 'InTheHouse2026!'
+    if (setup_key !== SETUP_KEY) {
+      return c.json({ error: 'Invalid setup key' }, 403)
+    }
+    
+    // Get all employees
+    const employees = await DB.prepare(`SELECT id, email, full_name FROM employees WHERE is_active = 1`).all()
+    
+    // Hash the default password with PBKDF2
+    const defaultPassword = 'Employee123!'
+    const newHash = await hashPassword(defaultPassword)
+    
+    // Update all employees with the new PBKDF2 hash
+    let updated = 0
+    for (const emp of (employees.results || [])) {
+      await DB.prepare(`UPDATE employees SET password_hash = ? WHERE id = ?`).bind(newHash, (emp as any).id).run()
+      updated++
+    }
+    
+    return c.json({
+      success: true,
+      message: `Reset ${updated} employee passwords to PBKDF2 format`,
+      updated
+    })
+  } catch (error: any) {
+    return c.json({ error: 'Failed to reset employee passwords', details: error.message }, 500)
   }
 })
 
@@ -2565,7 +2612,16 @@ app.post('/api/webhook/stripe', async (c) => {
 
 // Check availability for a specific date, time and provider (DJ double-booking logic)
 app.post('/api/availability/check', async (c) => {
-  const { provider, date, startTime, endTime } = await c.req.json()
+  const body = await c.req.json()
+  // Accept both naming conventions for flexibility
+  const provider = body.provider || body.serviceProvider
+  const date = body.date || body.eventDate
+  const startTime = body.startTime
+  const endTime = body.endTime
+  
+  if (!provider || !date) {
+    return c.json({ error: 'Provider and date are required' }, 400)
+  }
   const { DB } = c.env
   
   try {
@@ -2870,8 +2926,10 @@ app.post('/api/bookings/create', async (c) => {
       return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
     
-    // Check availability one more time
-    const availCheck = await fetch(`${c.req.url.replace('/bookings/create', '/availability/check')}`, {
+    // Check availability one more time (using origin from request URL for proper routing)
+    const requestUrl = new URL(c.req.url)
+    const availCheckUrl = `${requestUrl.origin}/api/availability/check`
+    const availCheck = await fetch(availCheckUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2882,19 +2940,49 @@ app.post('/api/bookings/create', async (c) => {
       })
     })
     
-    const availResult = await availCheck.json()
+    const availResult = await availCheck.json() as any
     if (!availResult.available) {
       return c.json({ error: 'Time slot no longer available', reason: availResult.reason }, 409)
     }
     
-    // Calculate pricing
-    const service = servicePricing[bookingData.serviceType as keyof typeof servicePricing]
-    if (!service) {
+    // Calculate pricing - check event type for wedding vs party rates
+    const eventType = bookingData.eventDetails?.eventType?.toLowerCase() || 'party'
+    const isWedding = eventType.includes('wedding')
+    
+    // For wedding DJ bookings, use wedding-specific pricing
+    let pricingKey = bookingData.serviceProvider
+    if (isWedding && bookingData.serviceType === 'dj') {
+      pricingKey = 'dj_wedding'  // Use wedding package pricing ($850/5hrs)
+    }
+    
+    let pricingEntry: any = servicePricing[pricingKey as keyof typeof servicePricing]
+    if (!pricingEntry) {
+      pricingEntry = servicePricing[bookingData.serviceProvider as keyof typeof servicePricing]
+    }
+    if (!pricingEntry) {
+      pricingEntry = servicePricing[bookingData.serviceType as keyof typeof servicePricing]
+    }
+    if (!pricingEntry) {
       return c.json({ error: 'Invalid service type' }, 400)
     }
     
+    // Resolve pricing values
+    let basePrice = pricingEntry.basePrice
+    let hourlyRate = pricingEntry.hourlyRate || 0
+    let baseHours = pricingEntry.baseHours || 4
+    
+    // Handle nested structure fallback (e.g., dj: { party: {...}, wedding: {...} })
+    if (basePrice === undefined && pricingEntry.party) {
+      const subType = isWedding ? 'wedding' : 'party'
+      const sub = pricingEntry[subType] || pricingEntry.party
+      basePrice = sub.basePrice
+      hourlyRate = sub.hourlyRate || 0
+      baseHours = sub.baseHours || 4
+    }
+    
     const hours = calculateHours(bookingData.startTime, bookingData.endTime)
-    const totalPrice = service.basePrice + (service.hourlyRate * hours)
+    const additionalHours = Math.max(0, hours - baseHours)
+    const totalPrice = basePrice + (hourlyRate * additionalHours)
     
     // Insert booking (CRITICAL: Include event_start_time and event_end_time - NOT NULL fields)
     const bookingResult = await DB.prepare(`
