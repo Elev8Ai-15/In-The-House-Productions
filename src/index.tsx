@@ -113,8 +113,6 @@ function generateRefersionConversionScript(publicKey?: string, cartId?: string, 
   `;
 }
 
-// JWT Secret is now imported from auth-middleware.ts
-
 const app = new Hono<{ Bindings: Bindings }>()
 
 // Apply security headers to all routes (Zero-Trust Security)
@@ -8394,183 +8392,6 @@ app.get('/employee/dashboard', (c) => {
   `)
 })
 
-// Diagnostic Tool Page
-app.get('/diagnostic', (c) => {
-  const refersionKey = c.env.REFERSION_PUBLIC_KEY
-  return c.html(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Session Diagnostic Tool</title>
-        ${generateRefersionTrackingScript(refersionKey)}
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-black text-white p-4 md:p-8">
-        <div class="max-w-4xl mx-auto">
-            <h1 class="text-2xl md:text-3xl font-bold mb-8 text-center">🔍 Session Diagnostic Tool</h1>
-            
-            <div id="diagnosticResults" class="space-y-4"></div>
-            
-            <button onclick="runDiagnostics()" class="mt-8 bg-red-600 text-white px-8 py-4 rounded-lg font-bold w-full hover:bg-red-700">
-                🔄 RUN FULL DIAGNOSTIC
-            </button>
-            
-            <div class="mt-4 text-center text-sm text-gray-400">
-                <p>This tool will test your login session and show all results visibly on screen.</p>
-                <p class="mt-2">Take a screenshot of the results and send them to support.</p>
-            </div>
-        </div>
-        
-        <script>
-          function displayResult(title, value, status) {
-            const color = status === 'success' ? 'green' : status === 'error' ? 'red' : 'yellow';
-            const icon = status === 'success' ? '✅' : status === 'error' ? '❌' : '⚠️';
-            return \`
-              <div class="bg-gray-900 p-4 rounded-lg border-2 border-\${color}-500">
-                <div class="font-bold text-\${color}-400 mb-2">\${icon} \${title}</div>
-                <div class="text-sm font-mono break-all whitespace-pre-wrap">\${value}</div>
-              </div>
-            \`;
-          }
-          
-          async function runDiagnostics() {
-            const container = document.getElementById('diagnosticResults');
-            container.innerHTML = '<div class="text-center text-yellow-400 text-xl">⏳ Running diagnostics...</div>';
-            
-            let html = '';
-            
-            // Check 1: Token in localStorage
-            const token = localStorage.getItem('authToken');
-            html += displayResult(
-              '1. Token in localStorage',
-              token ? \`✅ Found\\nLength: \${token.length} characters\\nPreview: \${token.substring(0, 100)}...\` : '❌ NOT FOUND - You need to login first!',
-              token ? 'success' : 'error'
-            );
-            
-            // Check 2: User data in localStorage
-            const user = localStorage.getItem('user');
-            html += displayResult(
-              '2. User data in localStorage',
-              user ? \`✅ Found:\\n\${user}\` : '❌ NOT FOUND',
-              user ? 'success' : 'error'
-            );
-            
-            // Check 3: Token format
-            if (token) {
-              const validFormat = token.startsWith('eyJ');
-              html += displayResult(
-                '3. Token format validation',
-                validFormat ? '✅ Valid JWT format (starts with eyJ)' : '❌ INVALID FORMAT - Token is corrupted',
-                validFormat ? 'success' : 'error'
-              );
-              
-              // Check 4: Test token with /api/auth/me
-              try {
-                console.log('Testing /api/auth/me endpoint...');
-                const meResponse = await fetch('/api/auth/me', {
-                  headers: { 'Authorization': \`Bearer \${token}\` }
-                });
-                const meData = await meResponse.json();
-                html += displayResult(
-                  '4. Token validation test (/api/auth/me)',
-                  \`HTTP Status: \${meResponse.status}\\n\\nResponse:\\n\${JSON.stringify(meData, null, 2)}\`,
-                  meResponse.ok ? 'success' : 'error'
-                );
-              } catch (error) {
-                html += displayResult(
-                  '4. Token validation test (/api/auth/me)',
-                  \`❌ Error: \${error.message}\`,
-                  'error'
-                );
-              }
-              
-              // Check 5: Test booking endpoint (without actually creating a booking)
-              try {
-                console.log('Testing booking endpoint auth...');
-                const bookingResponse = await fetch('/api/bookings/create', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': \`Bearer \${token}\`
-                  },
-                  body: JSON.stringify({
-                    serviceType: 'dj',
-                    serviceProvider: 'dj_cease',
-                    eventDate: '2026-02-01',
-                    startTime: '18:00',
-                    endTime: '22:00',
-                    eventDetails: {
-                      eventName: 'Diagnostic Test',
-                      eventType: 'test',
-                      venueName: 'Test Venue',
-                      venueAddress: '123 Test St',
-                      venueCity: 'Test City',
-                      venueState: 'FL',
-                      venueZip: '12345',
-                      expectedGuests: 50,
-                      specialRequests: 'This is a diagnostic test'
-                    }
-                  })
-                });
-                const bookingData = await bookingResponse.json();
-                
-                let statusText = '';
-                if (bookingResponse.status === 401) {
-                  statusText = '❌ AUTHENTICATION FAILED - This is the bug!';
-                } else if (bookingResponse.ok) {
-                  statusText = '✅ Authentication passed (booking endpoint accepts token)';
-                } else {
-                  statusText = \`⚠️  Other error (status \${bookingResponse.status})\`;
-                }
-                
-                html += displayResult(
-                  '5. Booking endpoint auth test',
-                  \`\${statusText}\\n\\nHTTP Status: \${bookingResponse.status}\\n\\nResponse:\\n\${JSON.stringify(bookingData, null, 2)}\`,
-                  bookingResponse.status === 401 ? 'error' : (bookingResponse.ok ? 'success' : 'warning')
-                );
-              } catch (error) {
-                html += displayResult(
-                  '5. Booking endpoint auth test',
-                  \`❌ Error: \${error.message}\`,
-                  'error'
-                );
-              }
-            } else {
-              html += displayResult(
-                '3-5. Remaining tests skipped',
-                '⚠️  No token found in localStorage\\n\\nPlease login first at /login then come back to this page',
-                'warning'
-              );
-            }
-            
-            // Summary
-            html += \`
-              <div class="mt-8 p-6 bg-blue-900 rounded-lg">
-                <h3 class="text-xl font-bold mb-4">📋 Diagnostic Summary</h3>
-                <p class="mb-2"><strong>What to do next:</strong></p>
-                <ol class="list-decimal list-inside space-y-2 text-sm">
-                  <li>Take a screenshot of this entire page</li>
-                  <li>Send the screenshot to support</li>
-                  <li>Support will identify the exact issue and provide a fix</li>
-                </ol>
-                <p class="text-sm text-gray-300 mt-4">Test Time: \${new Date().toISOString()}</p>
-                <p class="text-sm text-gray-300">Test URL: \${window.location.href}</p>
-              </div>
-            \`;
-            
-            container.innerHTML = html;
-          }
-          
-          // Auto-run on load
-          window.addEventListener('DOMContentLoaded', runDiagnostics);
-        </script>
-    </body>
-    </html>
-  `)
-})
-
 // ===== WEDDING EVENT PLANNING FORM SYSTEM =====
 
 // Helper: Generate invoice for a specific booking (called after payment confirmation)
@@ -9423,15 +9244,15 @@ app.post('/api/invoices/:invoiceId/status', async (c) => {
       return c.json({ error: 'Invalid status' }, 400)
     }
     
-    const updates: string[] = [`status = '${status}'`, "updated_at = datetime('now')"]
-    
     if (status === 'paid') {
-      updates.push("paid_date = date('now')")
-      updates.push("amount_due = 0")
-      updates.push("amount_paid = total")
+      await DB.prepare(
+        `UPDATE invoices SET status = ?, updated_at = datetime('now'), paid_date = date('now'), amount_due = 0, amount_paid = total WHERE id = ?`
+      ).bind(status, invoiceId).run()
+    } else {
+      await DB.prepare(
+        `UPDATE invoices SET status = ?, updated_at = datetime('now') WHERE id = ?`
+      ).bind(status, invoiceId).run()
     }
-    
-    await DB.prepare(`UPDATE invoices SET ${updates.join(', ')} WHERE id = ?`).bind(invoiceId).run()
     
     // Also update booking payment status if invoice is marked paid
     if (status === 'paid') {
