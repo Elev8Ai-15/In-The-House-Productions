@@ -2098,8 +2098,24 @@ app.post('/api/create-payment-intent', async (c) => {
     let totalAmount = 0 // in cents
     const lineItems: any[] = []
     
+    // Detect wedding event type from eventDetails or booking record
+    const eventType = eventDetails?.eventDetails?.eventType?.toLowerCase() 
+      || eventDetails?.eventType?.toLowerCase() 
+      || ''
+    const isWeddingEvent = eventType.includes('wedding')
+    
     for (const item of items) {
-      const service = servicePricing[item.serviceId as keyof typeof servicePricing]
+      // CRITICAL: For wedding events with DJ service, use wedding pricing tier
+      let serviceKey = item.serviceId as keyof typeof servicePricing
+      if (isWeddingEvent && item.serviceType === 'dj' && !item.serviceId?.includes('wedding')) {
+        serviceKey = 'dj_wedding' as keyof typeof servicePricing
+      }
+      
+      let service = servicePricing[serviceKey]
+      if (!service) {
+        // Fallback to original serviceId
+        service = servicePricing[item.serviceId as keyof typeof servicePricing]
+      }
       if (!service) {
         return c.json({ error: `Invalid service: ${item.serviceId}` }, 400)
       }
@@ -2109,11 +2125,9 @@ app.post('/api/create-payment-intent', async (c) => {
       const hourlyRate = service.hourlyRate || 0
       const baseHours = service.baseHours || 4
       
-      // Calculate: base price + additional hours
-      let itemTotal = basePrice
-      if (hours > baseHours) {
-        itemTotal += (hours - baseHours) * hourlyRate
-      }
+      // Calculate: base price + additional hours beyond base package
+      const additionalHours = Math.max(0, hours - baseHours)
+      let itemTotal = basePrice + (additionalHours * hourlyRate)
       
       // Convert to cents
       const itemTotalCents = itemTotal * 100
@@ -2121,7 +2135,7 @@ app.post('/api/create-payment-intent', async (c) => {
       
       lineItems.push({
         serviceId: item.serviceId,
-        serviceName: service.name,
+        serviceName: isWeddingEvent && item.serviceType === 'dj' ? 'DJ Wedding Package' : service.name,
         hours: hours,
         basePrice: basePrice,
         hourlyRate: hourlyRate,
@@ -2258,12 +2272,18 @@ app.post('/api/payment/confirm', async (c) => {
     const { paymentIntentId, bookingId } = await c.req.json()
     const { DB } = c.env
     
+    let isWedding = false
+    
     // Update booking status
     if (bookingId) {
       // Get booking details for creating time slot
       const booking = await DB.prepare(`
-        SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time
-        FROM bookings WHERE id = ?
+        SELECT b.id, b.service_type, b.service_provider, b.event_date, 
+               b.event_start_time, b.event_end_time, b.total_price,
+               e.event_type
+        FROM bookings b
+        LEFT JOIN event_details e ON b.id = e.booking_id
+        WHERE b.id = ?
       `).bind(bookingId).first() as any
       
       await DB.prepare(`
@@ -2293,9 +2313,65 @@ app.post('/api/payment/confirm', async (c) => {
           ).run()
         }
       }
+      
+      // Auto-generate invoice for this booking
+      try {
+        await generateInvoiceForBooking(DB, bookingId)
+      } catch (invoiceErr) {
+        console.error('Invoice generation failed (non-blocking):', invoiceErr)
+      }
+      
+      // Send confirmation email with invoice
+      try {
+        await sendPaymentConfirmationEmail(c.env, bookingId)
+      } catch (emailErr) {
+        console.error('Confirmation email failed (non-blocking):', emailErr)
+      }
+      
+      // Check if this is a wedding event
+      isWedding = booking?.event_type?.toLowerCase()?.includes('wedding') || false
+      
+      // For weddings: create initial wedding_event_forms record if not exists
+      if (isWedding) {
+        const existingForm = await DB.prepare(
+          'SELECT id FROM wedding_event_forms WHERE booking_id = ?'
+        ).bind(bookingId).first()
+        
+        if (!existingForm) {
+          // Get user_id from booking
+          const bookingForForm = await DB.prepare(
+            'SELECT user_id FROM bookings WHERE id = ?'
+          ).bind(bookingId).first() as any
+          
+          await DB.prepare(`
+            INSERT INTO wedding_event_forms (booking_id, user_id, form_status)
+            VALUES (?, ?, 'pending')
+          `).bind(bookingId, bookingForForm?.user_id || 0).run()
+        }
+        
+        // Send wedding form email to client
+        try {
+          const user = await DB.prepare(
+            'SELECT id, full_name, email FROM users WHERE id = (SELECT user_id FROM bookings WHERE id = ?)'
+          ).bind(bookingId).first() as any
+          
+          if (user) {
+            const baseUrl = new URL(c.req.url).origin
+            const formUrl = `${baseUrl}/wedding-planner/${bookingId}`
+            await sendWeddingFormEmail(c.env, booking, user, formUrl)
+          }
+        } catch (weddingEmailErr) {
+          console.error('Wedding form email failed (non-blocking):', weddingEmailErr)
+        }
+      }
     }
     
-    return c.json({ success: true, message: 'Payment confirmed' })
+    return c.json({ 
+      success: true, 
+      message: 'Payment confirmed',
+      isWedding,
+      bookingId
+    })
   } catch (error: any) {
     return c.json({ error: error.message }, 500)
   }
@@ -2610,10 +2686,91 @@ app.post('/api/webhook/stripe', async (c) => {
   }
 })
 
+// ===== AVAILABILITY CHECK CORE LOGIC (shared function) =====
+async function checkAvailabilityLogic(DB: any, provider: string, date: string, startTime?: string, endTime?: string): Promise<any> {
+  // Check manual blocks first
+  const blocks = await DB.prepare(`
+    SELECT COUNT(*) as count 
+    FROM availability_blocks 
+    WHERE service_provider = ? 
+    AND block_date = ?
+  `).bind(provider, date).first()
+  
+  if (blocks && blocks.count > 0) {
+    return { available: false, reason: 'Date manually blocked', canDoubleBook: false }
+  }
+  
+  // Photobooth logic: 2 units, 1 booking per unit per day
+  if (provider.startsWith('photobooth')) {
+    const bookings = await DB.prepare(`
+      SELECT COUNT(*) as count 
+      FROM bookings 
+      WHERE service_type = 'photobooth'
+      AND event_date = ? 
+      AND status != 'cancelled'
+    `).bind(date).first()
+    
+    const available = bookings && bookings.count < 2
+    return { 
+      available,
+      reason: available ? '' : 'Both photobooth units booked',
+      canDoubleBook: false,
+      bookingsCount: bookings?.count || 0,
+      maxBookings: 2
+    }
+  }
+  
+  // DJ logic: Check for double-booking possibility
+  const existingBookings = await DB.prepare(`
+    SELECT id, event_date, start_time, end_time
+    FROM booking_time_slots
+    WHERE service_provider = ?
+    AND event_date = ?
+    AND status = 'confirmed'
+    ORDER BY start_time ASC
+  `).bind(provider, date).all()
+  
+  const bookingsCount = existingBookings.results?.length || 0
+  
+  if (bookingsCount === 0) {
+    return { available: true, canDoubleBook: true, bookingsCount: 0, maxBookings: 2 }
+  }
+  
+  if (bookingsCount >= 2) {
+    return { available: false, reason: 'DJ already has maximum 2 bookings on this date', canDoubleBook: false, bookingsCount, maxBookings: 2 }
+  }
+  
+  // Has 1 booking: check if double-booking is possible
+  const existing = existingBookings.results[0] as any
+  const existingStart = parseTime(existing.start_time)
+  const existingEnd = parseTime(existing.end_time)
+  const newStart = startTime ? parseTime(startTime) : 0
+  const newEnd = endTime ? parseTime(endTime) : 0
+  
+  if (existingStart >= parseTime('11:00')) {
+    return { available: false, reason: 'DJ has afternoon/evening event (starts after 11:00 AM). Full day blocked.', canDoubleBook: false, bookingsCount: 1, maxBookings: 2 }
+  }
+  
+  if (newStart >= parseTime('11:00')) {
+    const gapHours = (newStart - existingEnd) / 60
+    if (gapHours >= 3) {
+      return { available: true, canDoubleBook: true, bookingsCount: 1, maxBookings: 2, message: 'Double-booking allowed: 3+ hour gap between events' }
+    } else {
+      return { available: false, reason: `Insufficient time gap: ${gapHours.toFixed(1)} hours (need 3 hours minimum)`, canDoubleBook: false, bookingsCount: 1, maxBookings: 2 }
+    }
+  }
+  
+  const gapHours = (newStart - existingEnd) / 60
+  if (gapHours >= 3) {
+    return { available: true, canDoubleBook: true, bookingsCount: 1, maxBookings: 2, message: 'Double-booking allowed: 3+ hour gap between early events' }
+  }
+  
+  return { available: false, reason: 'Time conflict with existing booking', canDoubleBook: false, bookingsCount: 1, maxBookings: 2 }
+}
+
 // Check availability for a specific date, time and provider (DJ double-booking logic)
 app.post('/api/availability/check', async (c) => {
   const body = await c.req.json()
-  // Accept both naming conventions for flexibility
   const provider = body.provider || body.serviceProvider
   const date = body.date || body.eventDate
   const startTime = body.startTime
@@ -2622,160 +2779,10 @@ app.post('/api/availability/check', async (c) => {
   if (!provider || !date) {
     return c.json({ error: 'Provider and date are required' }, 400)
   }
-  const { DB } = c.env
   
   try {
-    // Check manual blocks first
-    const blocks = await DB.prepare(`
-      SELECT COUNT(*) as count 
-      FROM availability_blocks 
-      WHERE service_provider = ? 
-      AND block_date = ?
-    `).bind(provider, date).first()
-    
-    if (blocks && blocks.count > 0) {
-      return c.json({ 
-        available: false, 
-        reason: 'Date manually blocked',
-        canDoubleBook: false
-      })
-    }
-    
-    // Photobooth logic: 2 units, 1 booking per unit per day
-    if (provider.startsWith('photobooth')) {
-      const bookings = await DB.prepare(`
-        SELECT COUNT(*) as count 
-        FROM bookings 
-        WHERE service_type = 'photobooth'
-        AND event_date = ? 
-        AND status != 'cancelled'
-      `).bind(date).first()
-      
-      const available = bookings && bookings.count < 2
-      return c.json({ 
-        available,
-        reason: available ? '' : 'Both photobooth units booked',
-        canDoubleBook: false,
-        bookingsCount: bookings?.count || 0,
-        maxBookings: 2
-      })
-    }
-    
-    // DJ logic: Check for double-booking possibility
-    // IMPORTANT: Only count 'confirmed' bookings (paid) - pending bookings don't block dates
-    const existingBookings = await DB.prepare(`
-      SELECT id, event_date, start_time, end_time
-      FROM booking_time_slots
-      WHERE service_provider = ?
-      AND event_date = ?
-      AND status = 'confirmed'
-      ORDER BY start_time ASC
-    `).bind(provider, date).all()
-    
-    const bookingsCount = existingBookings.results?.length || 0
-    
-    // No bookings = fully available
-    if (bookingsCount === 0) {
-      return c.json({ 
-        available: true,
-        canDoubleBook: true,
-        bookingsCount: 0,
-        maxBookings: 2
-      })
-    }
-    
-    // Already has 2 bookings = not available
-    if (bookingsCount >= 2) {
-      return c.json({ 
-        available: false,
-        reason: 'DJ already has maximum 2 bookings on this date',
-        canDoubleBook: false,
-        bookingsCount,
-        maxBookings: 2
-      })
-    }
-    
-    // Has 1 booking: check if double-booking is possible
-    const existing = existingBookings.results[0] as any
-    const existingStart = parseTime(existing.start_time)
-    const existingEnd = parseTime(existing.end_time)
-    const newStart = parseTime(startTime)
-    const newEnd = parseTime(endTime)
-    
-    // Rule 1: If existing booking starts after 11:00 AM, entire day is blocked
-    if (existingStart >= parseTime('11:00')) {
-      return c.json({
-        available: false,
-        reason: 'DJ has afternoon/evening event (starts after 11:00 AM). Full day blocked.',
-        canDoubleBook: false,
-        bookingsCount: 1,
-        maxBookings: 2,
-        existingBooking: {
-          startTime: existing.start_time,
-          endTime: existing.end_time
-        }
-      })
-    }
-    
-    // Rule 2: If new booking starts after 11:00 AM, check if there's time after existing
-    if (newStart >= parseTime('11:00')) {
-      // Need 3-hour gap after existing booking ends
-      const gapHours = (newStart - existingEnd) / 60
-      if (gapHours >= 3) {
-        return c.json({
-          available: true,
-          canDoubleBook: true,
-          bookingsCount: 1,
-          maxBookings: 2,
-          message: 'Double-booking allowed: 3+ hour gap between events',
-          existingBooking: {
-            startTime: existing.start_time,
-            endTime: existing.end_time
-          }
-        })
-      } else {
-        return c.json({
-          available: false,
-          reason: `Insufficient time gap: ${gapHours.toFixed(1)} hours (need 3 hours minimum)`,
-          canDoubleBook: false,
-          bookingsCount: 1,
-          maxBookings: 2,
-          existingBooking: {
-            startTime: existing.start_time,
-            endTime: existing.end_time
-          }
-        })
-      }
-    }
-    
-    // Rule 3: Both early bookings (before 11 AM) - check 3-hour gap
-    const gapHours = (newStart - existingEnd) / 60
-    if (gapHours >= 3) {
-      return c.json({
-        available: true,
-        canDoubleBook: true,
-        bookingsCount: 1,
-        maxBookings: 2,
-        message: 'Double-booking allowed: 3+ hour gap between early events',
-        existingBooking: {
-          startTime: existing.start_time,
-          endTime: existing.end_time
-        }
-      })
-    }
-    
-    return c.json({
-      available: false,
-      reason: 'Time conflict with existing booking',
-      canDoubleBook: false,
-      bookingsCount: 1,
-      maxBookings: 2,
-      existingBooking: {
-        startTime: existing.start_time,
-        endTime: existing.end_time
-      }
-    })
-    
+    const result = await checkAvailabilityLogic(c.env.DB, provider, date, startTime, endTime)
+    return c.json(result)
   } catch (error: any) {
     console.error('Availability check error:', error)
     return c.json({ error: 'Failed to check availability', details: error.message }, 500)
@@ -2926,21 +2933,14 @@ app.post('/api/bookings/create', async (c) => {
       return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400)
     }
     
-    // Check availability one more time (using origin from request URL for proper routing)
-    const requestUrl = new URL(c.req.url)
-    const availCheckUrl = `${requestUrl.origin}/api/availability/check`
-    const availCheck = await fetch(availCheckUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider: bookingData.serviceProvider,
-        date: bookingData.eventDate,
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime
-      })
-    })
-    
-    const availResult = await availCheck.json() as any
+    // Check availability one more time (direct function call - no self-fetch to avoid Worker deadlock)
+    const availResult = await checkAvailabilityLogic(
+      DB,
+      bookingData.serviceProvider,
+      bookingData.eventDate,
+      bookingData.startTime,
+      bookingData.endTime
+    )
     if (!availResult.available) {
       return c.json({ error: 'Time slot no longer available', reason: availResult.reason }, 409)
     }
@@ -5655,12 +5655,16 @@ app.get('/checkout', (c) => {
                             })
                         });
                         
+                        const confirmData = await confirmResponse.json();
+                        
                         if (confirmResponse.ok) {
-                            // Redirect to success page
-                            window.location.href = '/checkout/mock-success?session_id=' + 
+                            // Redirect to success page with wedding flag
+                            const successUrl = '/checkout/mock-success?session_id=' + 
                                 window.mockPaymentData.clientSecret + 
                                 '&booking_id=' + window.mockPaymentData.bookingId + 
-                                '&total=' + (window.mockPaymentData.amount / 100).toFixed(2);
+                                '&total=' + (window.mockPaymentData.amount / 100).toFixed(2) +
+                                (confirmData.isWedding ? '&wedding=true' : '');
+                            window.location.href = successUrl;
                         } else {
                             throw new Error('Mock payment confirmation failed');
                         }
@@ -5704,17 +5708,18 @@ app.get('/booking-success', async (c) => {
   // Get booking details for Refersion conversion tracking
   let bookingTotal = 0
   let bookingId = ''
+  let isWeddingBooking = false
   
   // Update booking if we have a payment intent
   if (paymentIntentId && DB) {
     // First get the booking details including total for Refersion
     const booking = await DB.prepare(
-      "SELECT id, service_type, service_provider, event_date, event_start_time, event_end_time, total_amount FROM bookings WHERE stripe_payment_intent_id = ?"
+      "SELECT id, user_id, service_type, service_provider, event_date, event_start_time, event_end_time, total_price FROM bookings WHERE stripe_payment_intent_id = ?"
     ).bind(paymentIntentId).first() as any
     
     if (booking) {
       bookingId = booking.id.toString()
-      bookingTotal = booking.total_amount ? booking.total_amount / 100 : 0 // Convert cents to dollars
+      bookingTotal = booking.total_price || 0
     }
     
     // Update booking status
@@ -5724,7 +5729,6 @@ app.get('/booking-success', async (c) => {
     
     // CRITICAL: Create time slot NOW that payment is confirmed (blocks the calendar)
     if (booking?.id && !booking.service_type?.startsWith('photobooth')) {
-      // Check if slot already exists
       const existingSlot = await DB.prepare(
         "SELECT id FROM booking_time_slots WHERE booking_id = ?"
       ).bind(booking.id).first()
@@ -5744,23 +5748,40 @@ app.get('/booking-success', async (c) => {
       }
     }
     
-    // AUTO-TRIGGER: Wedding planning form for wedding bookings
     if (booking?.id) {
+      // AUTO-GENERATE: Invoice for this booking (using shared helper)
+      try {
+        await generateInvoiceForBooking(DB, booking.id)
+      } catch (invErr) {
+        console.error('Auto-invoice error:', invErr)
+      }
+      
+      // Send confirmation email with invoice
+      try {
+        await sendPaymentConfirmationEmail(c.env, booking.id)
+      } catch (emailErr) {
+        console.error('Confirmation email error:', emailErr)
+      }
+      
+      // Check if this is a wedding booking
       try {
         const eventDetail = await DB.prepare(
           "SELECT event_type FROM event_details WHERE booking_id = ?"
         ).bind(booking.id).first() as any
         
-        if (eventDetail?.event_type === 'wedding') {
-          // Create wedding form record
+        isWeddingBooking = eventDetail?.event_type?.toLowerCase()?.includes('wedding') || false
+        
+        if (isWeddingBooking) {
+          // Create wedding form record if not exists
           const existingForm = await DB.prepare(
             "SELECT id FROM wedding_event_forms WHERE booking_id = ?"
           ).bind(booking.id).first()
           
           if (!existingForm) {
-            await DB.prepare(
-              "INSERT INTO wedding_event_forms (booking_id, user_id, form_status) VALUES (?, ?, 'pending')"
-            ).bind(booking.id, booking.user_id).run()
+            await DB.prepare(`
+              INSERT INTO wedding_event_forms (booking_id, user_id, form_status)
+              VALUES (?, ?, 'pending')
+            `).bind(booking.id, booking.user_id).run()
           }
           
           // Send wedding form email
@@ -5776,38 +5797,6 @@ app.get('/booking-success', async (c) => {
         }
       } catch (wfErr) {
         console.error('Wedding form trigger error:', wfErr)
-      }
-      
-      // AUTO-GENERATE: Invoice for this booking
-      try {
-        const existingInvoice = await DB.prepare(
-          "SELECT id FROM invoices WHERE booking_id = ?"
-        ).bind(booking.id).first()
-        
-        if (!existingInvoice) {
-          const invoiceNumber = await generateInvoiceNumber(DB)
-          const total = booking.total_amount ? booking.total_amount / 100 : (booking.total_price || 0)
-          const issueDate = new Date().toISOString().split('T')[0]
-          const dueDate = issueDate // Already paid
-          
-          const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-          const lineItems = [{ service: providerName, description: `Event on ${booking.event_date}`, qty: 1, rate: total, amount: total }]
-          
-          await DB.prepare(`
-            INSERT INTO invoices (
-              booking_id, user_id, invoice_number, status,
-              subtotal, total, amount_paid, amount_due,
-              line_items_json, issue_date, due_date, paid_date,
-              auto_reminders, terms
-            ) VALUES (?, ?, ?, 'paid', ?, ?, ?, 0, ?, ?, ?, ?, 0, 'Payment received. Thank you!')
-          `).bind(
-            booking.id, booking.user_id, invoiceNumber,
-            total, total, total,
-            JSON.stringify(lineItems), issueDate, dueDate, issueDate
-          ).run()
-        }
-      } catch (invErr) {
-        console.error('Auto-invoice error:', invErr)
       }
     }
   }
@@ -6278,17 +6267,29 @@ app.get('/checkout/mock-success', async (c) => {
   const sessionId = c.req.query('session_id')
   const bookingId = c.req.query('booking_id')
   const total = c.req.query('total')
+  const weddingParam = c.req.query('wedding')
   const refersionKey = c.env.REFERSION_PUBLIC_KEY
   
-  // Mark booking as paid in development mode
   const { DB } = c.env
+  
+  // Detect if this is a wedding booking (from URL param or DB lookup)
+  let isWedding = weddingParam === 'true'
+  let invoiceNumber = ''
+  
   if (bookingId && DB) {
-    await DB.prepare(`
-      UPDATE bookings 
-      SET payment_status = 'paid', 
-          status = 'confirmed'
-      WHERE id = ?
-    `).bind(bookingId).run()
+    // Check event type in DB
+    if (!isWedding) {
+      const eventInfo = await DB.prepare(
+        'SELECT event_type FROM event_details WHERE booking_id = ?'
+      ).bind(bookingId).first() as any
+      isWedding = eventInfo?.event_type?.toLowerCase()?.includes('wedding') || false
+    }
+    
+    // Get invoice number
+    const inv = await DB.prepare(
+      'SELECT invoice_number FROM invoices WHERE booking_id = ?'
+    ).bind(bookingId).first() as any
+    invoiceNumber = inv?.invoice_number || ''
   }
   
   // Parse total for Refersion conversion tracking
@@ -6305,11 +6306,12 @@ app.get('/checkout/mock-success', async (c) => {
         ${generateRefersionConversionScript(refersionKey, bookingId || sessionId, totalValue)}
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/ultra-3d.css" rel="stylesheet">
         <style>
           body { background: #000; color: #fff; }
           .success-container {
             max-width: 600px;
-            margin: 4rem auto;
+            margin: 2rem auto;
             text-align: center;
             padding: 2rem;
           }
@@ -6327,9 +6329,31 @@ app.get('/checkout/mock-success', async (c) => {
             font-weight: bold;
             margin-bottom: 1rem;
           }
+          .wedding-cta {
+            background: linear-gradient(135deg, #E31E24, #FF0040);
+            border: 2px solid #FFD700;
+            padding: 20px 40px;
+            border-radius: 15px;
+            display: inline-block;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+          }
+          .wedding-cta:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(227, 30, 36, 0.5);
+          }
           @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
+          }
+          @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.6); }
           }
         </style>
     </head>
@@ -6344,34 +6368,63 @@ app.get('/checkout/mock-success', async (c) => {
                 Booking Confirmed!
             </h1>
             <p class="text-xl mb-6 text-gray-300">
-                Your mock payment was successful and your booking is confirmed.
+                Your payment was successful and your booking is confirmed.
             </p>
+            
             <div class="bg-gray-800 p-4 rounded-lg mb-6 text-left">
                 <h3 class="text-lg font-bold mb-2" style="color: #FFD700;">Booking Details:</h3>
-                <p class="text-gray-300">Session ID: ${sessionId}</p>
-                <p class="text-gray-300">Booking ID: ${bookingId}</p>
-                <p class="text-gray-300">Total: $${total}</p>
-                <p class="text-gray-300 mt-2">Status: <span style="color: #22c55e;">CONFIRMED</span></p>
+                <p class="text-gray-300">Booking ID: #${bookingId}</p>
+                <p class="text-gray-300">Total Paid: <span style="color: #22c55e; font-weight: bold;">$${total}</span></p>
+                ${invoiceNumber ? `<p class="text-gray-300">Invoice: ${invoiceNumber}</p>` : ''}
+                <p class="text-gray-300 mt-2">Status: <span style="color: #22c55e; font-weight: bold;">CONFIRMED & PAID</span></p>
             </div>
-            <div class="bg-yellow-900 border-2 border-yellow-500 p-4 rounded-lg mb-6">
-                <p class="text-sm text-yellow-200">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    <strong>Note:</strong> This is a mock payment for development/testing. 
-                    No real charge was made. Add a real Stripe API key for production.
+            
+            <div class="mb-6">
+                <p class="text-gray-400 mb-2">
+                    <i class="fas fa-envelope mr-2" style="color: #22c55e;"></i>
+                    Confirmation email with invoice has been sent.
+                </p>
+                <p class="text-gray-400">
+                    <i class="fas fa-file-invoice mr-2" style="color: #22c55e;"></i>
+                    Invoice ${invoiceNumber || 'generated'} - Status: PAID
                 </p>
             </div>
-            <p class="text-lg mb-4 text-gray-400">
-                <i class="fas fa-envelope mr-2"></i>
-                In production, confirmation emails would be sent.
-            </p>
-            <p class="text-lg mb-8 text-gray-400">
-                <i class="fas fa-sms mr-2"></i>
-                In production, SMS notifications would be sent.
-            </p>
-            <a href="/" class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors">
-                <i class="fas fa-home mr-2"></i>
-                RETURN HOME
-            </a>
+            
+            ${isWedding ? `
+            <div style="background: linear-gradient(135deg, rgba(227,30,36,0.15), rgba(255,215,0,0.1)); border: 2px solid #FFD700; border-radius: 15px; padding: 25px; margin: 25px 0;">
+                <h2 class="text-2xl font-bold mb-3" style="color: #FFD700;">
+                    <i class="fas fa-heart mr-2" style="color: #E31E24;"></i>
+                    Next Step: Your Wedding Planning Form!
+                </h2>
+                <p class="text-gray-300 mb-6">
+                    Please complete the wedding planning questionnaire so your DJ can prepare 
+                    everything perfectly for your special day. Include your song choices, 
+                    bridal party, timeline, and more!
+                </p>
+                <a href="/wedding-planner/${bookingId}" class="wedding-cta">
+                    <i class="fas fa-clipboard-list mr-2"></i>
+                    COMPLETE WEDDING FORM
+                </a>
+                <p class="text-sm text-gray-500 mt-4">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    You can save progress and come back anytime. A link has also been emailed to you.
+                </p>
+            </div>
+            ` : ''}
+            
+            <div class="mt-6 flex gap-4 justify-center flex-wrap">
+                ${isWedding ? `
+                <a href="/wedding-planner/${bookingId}" class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors">
+                    <i class="fas fa-clipboard-list mr-2"></i>
+                    WEDDING FORM
+                </a>
+                ` : ''}
+                <a href="/" class="inline-block px-8 py-3 ${isWedding ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white font-bold rounded-lg transition-colors">
+                    <i class="fas fa-home mr-2"></i>
+                    RETURN HOME
+                </a>
+            </div>
+            
             <p class="text-sm text-gray-500 mt-6">
                 Thank you for choosing In The House Productions!
             </p>
@@ -8519,6 +8572,180 @@ app.get('/diagnostic', (c) => {
 })
 
 // ===== WEDDING EVENT PLANNING FORM SYSTEM =====
+
+// Helper: Generate invoice for a specific booking (called after payment confirmation)
+async function generateInvoiceForBooking(DB: D1Database, bookingId: number): Promise<{ invoiceNumber: string | null, error?: string }> {
+  try {
+    // Check if invoice already exists for this booking
+    const existing = await DB.prepare(
+      'SELECT invoice_number FROM invoices WHERE booking_id = ?'
+    ).bind(bookingId).first() as any
+    
+    if (existing) {
+      return { invoiceNumber: existing.invoice_number }
+    }
+    
+    const booking = await DB.prepare(`
+      SELECT b.*, e.event_name, e.event_type, u.full_name as client_name, u.email as client_email
+      FROM bookings b
+      LEFT JOIN event_details e ON b.id = e.booking_id
+      LEFT JOIN users u ON b.user_id = u.id
+      WHERE b.id = ?
+    `).bind(bookingId).first() as any
+    
+    if (!booking) {
+      return { invoiceNumber: null, error: 'Booking not found' }
+    }
+    
+    const invoiceNumber = await generateInvoiceNumber(DB)
+    const total = booking.total_price || 0
+    const issueDate = new Date().toISOString().split('T')[0]
+    const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const amountPaid = booking.payment_status === 'paid' ? total : 0
+    
+    const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    const lineItems = [{
+      service: providerName || booking.service_type,
+      description: `${booking.event_type || booking.service_type} - ${booking.event_name || 'Event'} on ${booking.event_date}`,
+      qty: 1, rate: total, amount: total
+    }]
+    
+    await DB.prepare(`
+      INSERT INTO invoices (
+        booking_id, user_id, invoice_number, status,
+        subtotal, total, amount_paid, amount_due,
+        line_items_json, issue_date, due_date,
+        paid_date, auto_reminders, terms
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      bookingId, booking.user_id, invoiceNumber,
+      amountPaid >= total ? 'paid' : 'sent',
+      total, total, amountPaid, total - amountPaid,
+      JSON.stringify(lineItems), issueDate, dueDate,
+      amountPaid >= total ? issueDate : null,
+      1, 'Payment is due within 14 days.'
+    ).run()
+    
+    return { invoiceNumber }
+  } catch (err: any) {
+    console.error(`Failed to generate invoice for booking ${bookingId}:`, err)
+    return { invoiceNumber: null, error: err.message }
+  }
+}
+
+// Helper: Send booking confirmation + invoice email
+async function sendPaymentConfirmationEmail(env: any, bookingId: number) {
+  const { DB, RESEND_API_KEY } = env
+  const isDevelopmentMode = !RESEND_API_KEY || RESEND_API_KEY.includes('mock')
+  
+  try {
+    const booking = await DB.prepare(`
+      SELECT b.*, e.event_name, e.event_type, e.street_address, e.city, e.state,
+             u.full_name, u.email
+      FROM bookings b
+      LEFT JOIN event_details e ON b.id = e.booking_id
+      LEFT JOIN users u ON b.user_id = u.id
+      WHERE b.id = ?
+    `).bind(bookingId).first() as any
+    
+    if (!booking) return { success: false, error: 'Booking not found' }
+    
+    // Get invoice
+    const invoice = await DB.prepare(
+      'SELECT * FROM invoices WHERE booking_id = ?'
+    ).bind(bookingId).first() as any
+    
+    if (isDevelopmentMode) {
+      console.log(`[DEV] Would send payment confirmation email to: ${booking.email}`)
+      console.log(`[DEV] Booking #${bookingId} | Invoice: ${invoice?.invoice_number || 'N/A'} | Total: $${booking.total_price}`)
+      return { success: true, developmentMode: true }
+    }
+    
+    const isWedding = booking.event_type?.toLowerCase()?.includes('wedding')
+    const providerName = booking.service_provider?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+    
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #fff; padding: 30px; border-radius: 15px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #E31E24; font-size: 28px;">In The House Productions</h1>
+          <p style="color: #22c55e; font-size: 20px; font-weight: bold;">Payment Confirmed!</p>
+        </div>
+        
+        <p style="color: #C0C0C0; font-size: 16px;">Hi ${booking.full_name},</p>
+        <p style="color: #C0C0C0; line-height: 1.8;">
+          Your booking has been confirmed and payment processed successfully. Here are your details:
+        </p>
+        
+        <div style="background: #222; border: 1px solid #444; border-radius: 10px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #FFD700; margin-top: 0;">Booking Summary</h3>
+          <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+            <tr><td style="padding: 8px 0; font-weight: bold;">Event:</td><td>${booking.event_name || 'N/A'}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Type:</td><td>${booking.event_type || booking.service_type}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Date:</td><td>${booking.event_date}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Time:</td><td>${booking.event_start_time} - ${booking.event_end_time}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Provider:</td><td>${providerName}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Venue:</td><td>${booking.street_address || 'TBD'}${booking.city ? ', ' + booking.city : ''}${booking.state ? ', ' + booking.state : ''}</td></tr>
+          </table>
+        </div>
+        
+        ${invoice ? `
+        <div style="background: #222; border: 1px solid #22c55e; border-radius: 10px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #22c55e; margin-top: 0;">Invoice ${invoice.invoice_number}</h3>
+          <table style="width: 100%; color: #C0C0C0; border-collapse: collapse;">
+            <tr><td style="padding: 8px 0; font-weight: bold;">Total:</td><td>$${Number(booking.total_price).toFixed(2)}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Paid:</td><td style="color: #22c55e;">$${Number(invoice.amount_paid).toFixed(2)}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Status:</td><td style="color: #22c55e;">PAID</td></tr>
+          </table>
+        </div>
+        ` : ''}
+        
+        ${isWedding ? `
+        <div style="background: rgba(227, 30, 36, 0.15); border: 2px solid #E31E24; border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center;">
+          <h3 style="color: #FFD700; margin-top: 0;">Next Step: Complete Your Wedding Form!</h3>
+          <p style="color: #C0C0C0; margin-bottom: 15px;">Please fill out the wedding planning form so your DJ can prepare for your special day.</p>
+          <p style="color: #888; font-size: 13px;">You can access the form from the success page or check your email for the link.</p>
+        </div>
+        ` : ''}
+        
+        <p style="color: #888; font-size: 13px; margin-top: 20px;">
+          If you have any questions, contact us at (816) 217-1094 or reply to this email.
+        </p>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333;">
+          <p style="color: #666; font-size: 12px;">In The House Productions | (816) 217-1094 | www.inthehouseproductions.com</p>
+        </div>
+      </div>
+    `
+    
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: booking.email,
+        subject: `Booking Confirmed! ${isWedding ? '💍' : '🎧'} ${booking.event_name || 'Your Event'} - ${booking.event_date}`,
+        html: emailHtml
+      })
+    })
+    
+    // Also notify admin
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: ['mcecil38@yahoo.com'],
+        subject: `NEW Booking Paid - ${booking.full_name} - ${booking.event_type || booking.service_type} on ${booking.event_date}`,
+        html: emailHtml
+      })
+    })
+    
+    return { success: true }
+  } catch (err) {
+    console.error('Failed to send payment confirmation email:', err)
+    return { success: false }
+  }
+}
 
 // Helper: Generate next invoice number
 async function generateInvoiceNumber(DB: D1Database): Promise<string> {
