@@ -37,6 +37,21 @@
 
 ## Latest Updates
 
+### Feb 7, 2026 - Security & Feature Overhaul
+- **Admin Route Protection** - All `/api/admin/*` endpoints now require JWT with admin role (401/403)
+- **Password Reset Flow** - New `/forgot-password` and `/reset-password` pages + API endpoints
+- **Email Verification** - New `/verify-email` page + `/api/auth/verify-email` endpoint
+- **Booking Cancellation** - `/api/bookings/:id/cancel` with tiered refund policy (100%/50%/0%)
+- **Booking Refund (Admin)** - `/api/bookings/:id/refund` with Stripe refund integration
+- **My Bookings** - `/api/bookings/my-bookings` for authenticated users
+- **CSRF Protection** - Origin/Referer validation on all POST/PUT/DELETE API calls
+- **D1 Rate Limiting** - Persistent rate limiting via D1 SQLite (replaces in-memory)
+- **Secrets Externalized** - Setup key and default passwords moved to environment variables
+- **Fix Event Details** - Admin endpoint to repair orphaned bookings
+- **Modular Architecture** - New middleware and route modules (admin-auth, csrf, d1-rate-limit, password-reset, email-verification, cancellation)
+- **Image Optimization** - Lazy loading, intersection observer, responsive image helpers
+- **Build**: 752 KB bundle | 28 pages + APIs | All routes verified 200 OK
+
 ### Feb 7, 2026 - Wedding Planning Forms + Automatic Invoicing
 - **Wedding Planning Form System** (60+ fields, 10 sections)
   - Auto-triggered email after wedding booking
@@ -114,13 +129,15 @@
 - Tracking pixel on all pages
 - Conversion tracking on bookings
 
-### Phase 7: Admin Dashboard (80%)
+### Phase 7: Admin Dashboard (90%)
 - Admin authentication (separate from client)
+- **NEW**: JWT middleware guard on all `/api/admin/*` routes (returns 401/403)
 - Dashboard overview with booking stats
 - All bookings view with status management
 - Provider management
-- **NEW**: Wedding Forms tab - view all client wedding planning forms
-- **NEW**: Invoices tab - manage invoices, auto-generate, send reminders
+- Wedding Forms tab - view all client wedding planning forms
+- Invoices tab - manage invoices, auto-generate, send reminders
+- Fix orphaned event_details endpoint
 - Remaining: search/filter, reports, analytics
 
 ### Phase 7.5: Automatic Invoicing (100% - NEW)
@@ -151,12 +168,18 @@
 | POST | `/api/auth/register` | User registration |
 | POST | `/api/auth/login` | User login |
 | GET | `/api/auth/me` | Current user (auth required) |
+| POST | `/api/auth/forgot-password` | **NEW** Request password reset email |
+| POST | `/api/auth/reset-password` | **NEW** Reset password with token |
+| POST | `/api/auth/verify-email` | **NEW** Verify email with token |
+| POST | `/api/auth/resend-verification` | **NEW** Resend verification email |
 | GET | `/api/services/dj` | DJ profiles |
 | GET | `/api/services/photobooth` | Photobooth info |
 | GET | `/api/services/pricing` | All service pricing |
 | POST | `/api/availability/check` | Check availability |
 | GET | `/api/availability/:provider/:year/:month` | Monthly availability |
 | POST | `/api/bookings/create` | Create booking (auth required) |
+| GET | `/api/bookings/my-bookings` | **NEW** User's bookings (auth required) |
+| POST | `/api/bookings/:id/cancel` | **NEW** Cancel booking (auth required) |
 | POST | `/api/create-payment-intent` | Stripe payment intent (auth required) |
 | POST | `/api/payment/confirm` | Confirm payment |
 
@@ -174,15 +197,17 @@
 | POST | `/api/invoices/:id/status` | Update invoice status |
 | POST | `/api/invoices/:id/send-reminder` | Send payment reminder email |
 
-### Admin
+### Admin (All require JWT with admin role)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/admin/stats` | Dashboard statistics |
 | GET | `/api/admin/bookings` | All bookings with details |
 | POST | `/api/admin/bookings/:id/status` | Update booking status |
+| POST | `/api/bookings/:id/refund` | **NEW** Process refund (Stripe) |
 | GET | `/api/admin/providers` | All providers |
 | GET | `/api/admin/invoices` | All invoices with client info |
 | GET | `/api/admin/wedding-forms` | All wedding forms with client info |
+| POST | `/api/admin/fix-event-details` | **NEW** Fix orphaned bookings |
 
 ### Pages
 | Path | Description |
@@ -199,13 +224,16 @@
 | `/wedding-planner/:bookingId` | Wedding planning form |
 | `/admin` | Admin dashboard |
 | `/employee/login` | Employee login |
+| `/forgot-password` | **NEW** Password reset request |
+| `/reset-password` | **NEW** Set new password (from email link) |
+| `/verify-email` | **NEW** Email verification page |
 | `/contact` | Contact page |
 | `/about` | About page |
 
-## Database Schema (12 Migrations, 11+ Tables)
+## Database Schema (13 Migrations, 12+ Tables)
 
 ### Core Tables
-- **users** - Client and admin accounts
+- **users** - Client and admin accounts (+ reset_token, email_verified columns)
 - **bookings** - Event bookings with Stripe payment tracking
 - **booking_time_slots** - DJ availability and conflict prevention
 - **event_details** - Event information (venue, guests, etc.)
@@ -218,8 +246,7 @@
 ### New Tables (Feb 2026)
 - **wedding_event_forms** - 60+ field wedding planning questionnaire
 - **invoices** - Automatic invoicing with Stripe integration
-- **invoice_line_items** - Detailed line items per invoice
-- **invoice_reminders** - Payment reminder tracking
+- **rate_limits** - **NEW** D1-backed persistent rate limiting
 
 ## Technology Stack
 - **Framework**: Hono (lightweight, edge-optimized)
@@ -259,19 +286,42 @@ npm run deploy:prod        # Deploy to Cloudflare Pages
 - **Admin**: admin@inthehouseproductions.com / Admin123!
 - **Employees**: (various)@inthehouseproductions.com / Employee123!
 
-**Change these before production!**
+**IMPORTANT**: Set `SETUP_KEY` and `DEFAULT_EMPLOYEE_PASSWORD` env vars in production!
+
+## Security Architecture
+
+### Authentication & Authorization
+- **PBKDF2-SHA256** password hashing (10K iterations, 16-byte salt)
+- **JWT HS256** tokens with 24-hour expiry
+- **Admin middleware** guards all `/api/admin/*` routes (returns 401/403)
+- **Progressive lockout**: 5min after 5 failures, 15min after 10, 1hr after 15
+
+### Request Protection
+- **CSRF**: Origin/Referer header validation on all state-changing requests
+- **Rate limiting**: D1-backed persistent store (survives worker restarts)
+- **CSP**: Strict Content-Security-Policy with whitelisted CDNs
+- **HSTS**: Strict-Transport-Security with 1-year max-age
+- **Security headers**: X-Frame-Options, X-Content-Type-Options, Permissions-Policy
+
+### Environment Variables (Secrets)
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `JWT_SECRET` | JWT signing key | Yes |
+| `SETUP_KEY` | Admin setup key (default: fallback) | Recommended |
+| `DEFAULT_EMPLOYEE_PASSWORD` | Employee reset password | Recommended |
+| `STRIPE_SECRET_KEY` | Stripe API key | For payments |
+| `RESEND_API_KEY` | Email delivery | For emails |
+| `TWILIO_ACCOUNT_SID/AUTH_TOKEN` | SMS | For SMS |
+| `REFERSION_PUBLIC_KEY` | Affiliate tracking | Optional |
 
 ## Features Not Yet Implemented
 
 ### Phase 8: Client Dashboard
-- View own bookings and history
 - Download invoices as PDF
 - Edit wedding planning form from dashboard
-- Payment history
+- Payment history view
 
 ### Phase 9: Enhancements
-- Forgot password functionality
-- Email verification for new accounts
 - Booking reminders (7 days, 1 day before)
 - Client testimonials section
 - Photo gallery of past events
@@ -279,6 +329,7 @@ npm run deploy:prod        # Deploy to Cloudflare Pages
 - Promo codes and discounts
 - Advanced admin reports and analytics
 - Search/filter on admin bookings
+- Build-time Tailwind (replace CDN)
 
 ### Notification Enhancements
 - Activate SMS (needs Twilio credentials)
@@ -314,18 +365,30 @@ npm run deploy:prod        # Deploy to Cloudflare Pages
 ```
 webapp/
 ├── src/
-│   ├── index.tsx              # Main Hono app (~8000+ lines)
-│   ├── auth.ts                # Auth utilities
-│   ├── auth-middleware.ts      # JWT middleware
-│   ├── security-middleware.ts  # CSP, rate limiting, headers
+│   ├── index.tsx              # Main Hono app (routes + pages)
+│   ├── types.ts               # Shared Bindings type
+│   ├── auth.ts                # Auth utilities (PBKDF2, JWT)
+│   ├── auth-middleware.ts     # JWT secret helper
+│   ├── security-middleware.ts # CSP, headers, in-memory rate limiter
 │   ├── accessibility-helpers.ts
-│   └── seo-helpers.ts
-├── public/static/             # Static assets (logos, CSS)
-├── migrations/                # 12 D1 migration files
+│   ├── seo-helpers.ts
+│   ├── middleware/
+│   │   ├── admin-auth.ts      # Admin JWT guard middleware
+│   │   ├── csrf.ts            # CSRF protection middleware
+│   │   └── d1-rate-limit.ts   # D1-backed rate limiting
+│   ├── routes/
+│   │   ├── password-reset.ts  # Password reset flow
+│   │   ├── email-verification.ts # Email verification flow
+│   │   └── cancellation.ts    # Booking cancellation & refunds
+│   └── helpers/
+│       └── image-optimizer.ts # Image optimization utilities
+├── public/static/             # Static assets (~21 MB logos, CSS)
+├── migrations/                # 13 D1 migration files
 │   ├── 0001_initial_schema.sql
 │   ├── ...
-│   └── 0012_wedding_event_forms.sql
-├── dist/                      # Build output
+│   ├── 0012_wedding_event_forms.sql
+│   └── 0013_security_enhancements.sql
+├── dist/                      # Build output (752 KB)
 ├── ecosystem.config.cjs       # PM2 config
 ├── wrangler.jsonc             # Cloudflare config
 ├── package.json
@@ -346,14 +409,18 @@ webapp/
 | Phase 5: Stripe Payments | Complete | 100% |
 | Phase 6: Notifications | Email Active / SMS Ready | 95% |
 | Phase 6.5: Affiliate Tracking | Complete | 100% |
-| Phase 7: Admin Dashboard | Active | 80% |
-| Phase 7.5: Auto Invoicing | **Complete (NEW)** | 100% |
-| Phase 7.6: Wedding Forms | **Complete (NEW)** | 100% |
-| Phase 8: Client Dashboard | Not Started | 0% |
-| Phase 9: Enhancements | Partial | 20% |
+| Phase 7: Admin Dashboard | Active | 90% |
+| Phase 7.5: Auto Invoicing | Complete | 100% |
+| Phase 7.6: Wedding Forms | Complete | 100% |
+| Phase 7.7: Security Overhaul | **Complete (NEW)** | 100% |
+| Phase 7.8: Password Reset | **Complete (NEW)** | 100% |
+| Phase 7.9: Email Verification | **Complete (NEW)** | 100% |
+| Phase 7.10: Cancellation/Refunds | **Complete (NEW)** | 100% |
+| Phase 8: Client Dashboard | Partial | 30% |
+| Phase 9: Enhancements | Partial | 30% |
 
 ---
 
 **Last Updated**: 2026-02-07
-**Version**: 1.0.0 (Wedding Forms + Auto Invoicing)
-**Status**: Production-Ready | All Core Flows Operational
+**Version**: 2.0.0 (Security Overhaul + Password Reset + Email Verification + Cancellation/Refunds)
+**Status**: Production-Ready | All Core Flows Operational | Admin Routes Protected
