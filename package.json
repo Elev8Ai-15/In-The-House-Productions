@@ -20,7 +20,7 @@
     "stripe:list": "node -e \"const Stripe = require('stripe'); const s = new Stripe(process.env.STRIPE_SECRET_KEY); s.products.list({active: true}).then(p => console.log(JSON.stringify(p.data, null, 2)))\""
   },
   "dependencies": {
-    "hono": "^4.10.6",
+    "hono": "^4.11.8",
     "resend": "^6.6.0",
     "stripe": "^14.10.0",
     "twilio": "^5.11.1"
@@ -29,6 +29,6 @@
     "@hono/vite-build": "^1.2.0",
     "@hono/vite-dev-server": "^0.18.2",
     "vite": "^6.3.5",
-    "wrangler": "^4.4.0"
+    "wrangler": "^4.63.0"
   }
 }
