@@ -13,7 +13,7 @@ export async function securityHeaders(c: Context, next: Next) {
   // Content Security Policy - Zero Trust: Only allow necessary sources
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com https://cdn.refersion.com",
+    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com https://cdn.refersion.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com",

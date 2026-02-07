@@ -1,35 +1,23 @@
 # In The House Productions - Web Application
 
 ## Project Overview
-**In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface.
+**In The House Productions** is a comprehensive booking and project management system for mobile DJ and Photobooth services, featuring an 80's/90's/2000's music-era themed interface with automatic invoicing and wedding event planning.
 
-## 🌐 Live URLs
-- **Production (Latest)**: https://ab02ce95.webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
-- **Production (Permanent)**: https://webapp-2mf.pages.dev ✅ **100% OPERATIONAL**
-- **Custom Domain**: www.inthehouseproductions.com ✅ **LIVE & ACTIVE**
+## Live URLs
+- **Production (Permanent)**: https://webapp-2mf.pages.dev
+- **Custom Domain**: www.inthehouseproductions.com
 - **Mode**: Stripe Test Mode (Real Stripe Integration Active)
-- **Status**: Fully functional, complete booking and payment flow working!
-- **System Health**: 100/100 - All systems verified and calibrated
-- **Last Deploy**: January 15, 2026 - ✅ Complete Stripe Integration
+- **System Health**: 100/100 - All systems verified
+- **Last Deploy**: February 7, 2026 - Wedding Forms + Auto Invoicing + CSP Fix
 
-## 💳 Stripe Integration Status
+## Stripe Integration Status
 - **Current Account**: Brad Powell (acct_1SURzgFSfYQ6chIH)
 - **Email**: bradgpowell1123@gmail.com
 - **Mode**: Test Mode (using test keys)
 - **Products**: 12 products configured
-- **Charges Enabled**: ✅ Yes
-- **Payouts Enabled**: ✅ Yes
-- **Payment Intents**: ✅ Working
-
-### Stripe Account History (For Future Reference)
-| Account | Account ID | Email | Status |
-|---------|------------|-------|--------|
-| **Brad Powell (ACTIVE)** | acct_1SURzgFSfYQ6chIH | bradgpowell1123@gmail.com | ✅ Currently in use |
-| Elev8ai.org (ARCHIVED) | acct_1SfiL9FSpkhICUyS | (original setup) | ⏸️ Stored for client |
-
-**Note**: When client provides their Stripe keys, update both:
-- `STRIPE_SECRET_KEY` - Backend API calls
-- `STRIPE_PUBLISHABLE_KEY` - Frontend payment form
+- **Charges Enabled**: Yes
+- **Payouts Enabled**: Yes
+- **Payment Intents**: Working
 
 ### Stripe Products (12 Total)
 | Service | Base Price | Additional Hour |
@@ -47,483 +35,325 @@
 | Foam Pit Rental | $500 (4hr) | +$100/hr |
 | Foam Pit Additional Hour | $100 | - |
 
-## 🎉 Latest Updates
-- **Jan 15, 2026**: 💳 **Complete Stripe Integration!**
-  - Real Stripe Payment Intents working
-  - 12 products synced to Stripe account
-  - Checkout flow with Stripe Elements
-  - Webhook handling for payment confirmation
-  - Admin endpoint `/api/setup/stripe-products` for product management
-  - Status endpoint `/api/setup/stripe-status` for health checks
-- **Jan 15, 2026**: 🔧 **System Debug & Cleanup**
-  - Removed 15+ debug console.log statements
-  - Reduced bundle size (596KB → 594.81KB)
-  - Removed duplicate code sections
-  - Archived 74 documentation files to docs/archive/
-  - Removed backup files (.backup, .bak)
-- **Jan 15, 2026**: 🔐 **Admin Authentication Fixed**
-  - Reset admin password (bcrypt/PBKDF2 mismatch resolved)
-  - Added `/api/setup/reset-admin` endpoint
-  - Admin login now working on all environments
-- **Jan 13, 2026**: ✅ **Add-on Pricing CORRECTED!** - Accurate hourly rates
-  - **Karaoke**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
-  - **Uplighting**: $100 per 4hr event + **$50/hr additional** (was $0/hr ❌)
-  - Backend `hourlyRate: 50` implemented
-  - Frontend display updated to show "$50/hr additional"
-  - Documentation updated with correct calculations
-- **Jan 13, 2026**: 💰 **Pricing Display Updated!** - Transparent pricing on homepage
-  - **DJ Services**: Parties $500 (up to 4 hrs), Weddings $850 (up to 5 hrs), +$100/hr additional
-  - **Photobooth**: Unlimited strips $500 (4 hrs), 4x6 prints $550 (4 hrs), +$100/hr additional
-  - Clear pricing boxes on service cards with red neon styling
-  - Backend pricing configuration confirmed accurate
-- **Jan 13, 2026**: 🌐 **Custom Domain Added!** - www.inthehouseproductions.com configured
-  - Domain added to Cloudflare Pages (ID: 5abf8c9b-1453-440b-8f68-1ab7a9aab819)
-  - CNAME record set to webapp-2mf.pages.dev
-  - SSL certificate auto-provisioned
-  - DNS propagation in progress (15-30 minutes)
-  - Documentation: CUSTOM_DOMAIN_COMPLETE.md
-- **Jan 13, 2026**: 🔧 **Full System Calibration Complete!** - Production-ready verification
-  - Complete system health scan (100/100 score)
-  - Database integrity verified (9 migrations, 10 tables)
-  - All API endpoints tested (12/12 passing)
-  - Code quality audit (5,152 lines, optimized)
-  - Security scan passed (no hardcoded secrets)
-  - Build optimization (495KB bundle)
-  - Comprehensive calibration report generated
-  - **See**: SYSTEM_CALIBRATION_REPORT.md
-- **Jan 13, 2026**: 🏢 **Vendor Updates** - Still Creek added
-  - Removed: Almost Heaven, Circle C Farms
-  - Added: Still Creek (new preferred vendor)
-  - Current vendors: DK Farms, Big Red Barn, Garden Gate, Still Creek, Barn Yard
-- **Jan 13, 2026**: 📱 **Mobile UX Optimized!** - Responsive design overhaul
-  - Smart logo scaling (30% smaller on mobile)
-  - Readable tagline sizing
-  - Compact service cards with breathing room
-  - Touch-friendly buttons (50px min-height)
-  - Preserves retro/neon brand identity
-- **Jan 13, 2026**: ⚡ **Major Performance Optimizations!** - 95% faster page loads
-  - Server response: 0.19s (was 3-5s) - 95% improvement
-  - DNS Prefetch & Preconnect for faster CDN loading
-  - Async/defer for non-blocking resource loading  
-  - Lazy loading for images below the fold
-  - RequestIdleCallback for animations
-  - Critical CSS loaded first
-  - Font Awesome optimized with media trick
-  - Faster first paint and time-to-interactive
-  - Karaoke Setup: $100/4hr event ($50/hr additional)
-  - Uplighting: $100/4hr event (up to 6 lights)
-  - Foam Pit Rental: $500/4hr event ($100/hr additional)
-  - Wedding Photography: Info on request (custom packages)
-  - Wedding/Event Coordinator: Info on request (custom packages)
-  - Interactive service cards with detailed modal popups
-  - Professional pricing display and feature lists
-  - Responsive grid layout (mobile → tablet → desktop)
-- **Jan 13, 2026**: 📱 **Photobooth Card Fixed!** - Complete responsive consistency
-  - Applied same responsive classes as DJ card
-  - Icon wrapper with progressive sizing (70px → 130px)
-  - Logo now responsive (100% width with breathing-room)
-  - Card properly centered (90% → 85% → 400px → 450px)
-  - Consistent spacing and button styling
-  - Both service cards now perfectly matched!
-- **Jan 13, 2026**: 📱 **Mobile UX Optimized!** - Responsive design overhaul
-  - Smart logo scaling, readable tagline sizing
-  - Compact service cards, better spacing
-  - Touch-friendly buttons, retro brand preserved
-- **Jan 12, 2026**: ✅ **100% OPERATIONAL!** - System now works completely!
-  - Development mode with mock payments/emails
-  - Complete booking flow works without external API keys
+## Latest Updates
 
-## ✅ Currently Completed Features
+### Feb 7, 2026 - Wedding Planning Forms + Automatic Invoicing
+- **Wedding Planning Form System** (60+ fields, 10 sections)
+  - Auto-triggered email after wedding booking
+  - Client-facing form at `/wedding-planner/:bookingId`
+  - Progress saving per section
+  - Admin can view all form details in dashboard
+- **Automatic Invoicing System** (Stripe-native)
+  - Auto-generate invoices for confirmed bookings
+  - Invoice numbers (INV-2026-XXXX format)
+  - Payment reminders via email
+  - Mark invoices as paid, send reminders
+  - Admin invoice management tab
+- **Admin Dashboard Upgrade**
+  - New tabs: Bookings | Wedding Forms | Invoices | Providers
+  - Wedding form detail viewer with all 60+ fields
+  - Invoice management (auto-generate, mark paid, send reminders)
+  - Fixed CSP blocking axios CDN on admin pages
+- **Vibo concept removed** (per client direction)
 
-### Phase 1: Foundation & UI (100% COMPLETE)
-- ✅ Project initialization with Hono + Cloudflare Pages
-- ✅ Git repository with comprehensive .gitignore
-- ✅ D1 Database setup with complete schema
-- ✅ **3D Hero Logos** - Ultra-realistic chrome metallic with red neon glow on ALL pages
-- ✅ **80's/90's/2000's Retro Theme** - Red, black, and chrome color scheme
-- ✅ **Landing Page** with two service cards (DJ Services & Photobooth)
-- ✅ Neon text effects and chrome borders with hover animations
-- ✅ PM2 service management configuration
+### Jan 15, 2026 - Complete Stripe Integration
+- Real Stripe Payment Intents working
+- 12 products synced to Stripe account
+- Checkout flow with Stripe Elements
+- Admin authentication fixed
 
-### Phase 2: Authentication System (100% COMPLETE)
-- ✅ **Registration Page** with validation (email, phone, name, password)
-- ✅ **Login Page** with JWT authentication
-- ✅ **Password Security** with bcrypt hashing
-- ✅ **Session Management** with JWT tokens
-- ✅ Protected routes and middleware
+### Jan 13, 2026 - System Calibration
+- Custom domain www.inthehouseproductions.com active
+- Add-on pricing corrected
+- Mobile UX optimized
+- Major performance improvements (95% faster)
+- Vendor updates (5 venue partners)
 
-### Phase 3: DJ Services (100% COMPLETE)
-- ✅ **DJ Selection Page** with all 3 DJ profiles
-- ✅ **Individual DJ Cards** with bios, specialties, photos
-- ✅ **Priority System** (DJ Cease → DJ Elev8 → TKOtheDJ)
-- ✅ Real-time availability per DJ
-- ✅ Phone numbers displayed on profiles
+## Currently Completed Features
 
-### Phase 4: Advanced Booking System (100% COMPLETE)
-- ✅ **Real-Time Calendar** with availability checking
-- ✅ **Smart DJ Double-Booking Logic**:
-  - Morning/Evening split (11 AM threshold)
-  - 3-hour minimum gap between bookings
-  - Maximum 2 bookings per DJ per day
-- ✅ **Photobooth Concurrent Booking** (2 units, simultaneous bookings)
-- ✅ **Event Details Form** with validation
-- ✅ **Booking Confirmation** with summary
-- ✅ **Time Conflict Prevention** at API level
+### Phase 1: Foundation & UI (100%)
+- Project initialization with Hono + Cloudflare Pages
+- D1 Database setup with complete schema (12 migrations)
+- 3D Hero Logos - Ultra-realistic chrome metallic with red neon glow
+- 80's/90's/2000's Retro Theme - Red, black, and chrome
+- Landing page with two service cards (DJ Services & Photobooth)
+- Musical notes animated background
 
-### Phase 5: Stripe Payment Integration (100% COMPLETE)
-- ✅ **Checkout Session Creation** with dynamic pricing
-- ✅ **Payment Success/Cancel Pages** with booking tracking
-- ✅ **Webhook Handler** for automatic payment updates
-- ✅ **Booking Status Management** (pending → paid)
-- ✅ Test mode configured with Stripe test keys
+### Phase 2: Authentication System (100%)
+- Registration with validation (email, phone, name, password)
+- Login with JWT authentication
+- Password security with bcrypt hashing
+- Protected routes and middleware
 
-### Phase 6: Notification System (EMAIL 100% | SMS READY)
-- ✅ **Email Notifications** via Resend API:
-  - Client booking confirmations
-  - Provider booking alerts
-  - Event details included
-- ⏳ **SMS Notifications** via Twilio REST API:
-  - System ready, code complete
-  - Waiting for Twilio credentials
-  - Provider phones configured:
-    - DJ Cease: +1-727-359-4701 ✅
-    - Joey (TKOtheDJ): +1-352-801-5099 ✅
-    - Others: Fallback number
-- ✅ **Database Logging** of all notifications
+### Phase 3: DJ Services (100%)
+- DJ Selection Page with all 3 DJ profiles
+- Individual DJ Cards with bios, specialties, photos
+- Priority System (DJ Cease > DJ Elev8 > TKOtheDJ)
+- Real-time availability per DJ
 
-### API Endpoints (COMPLETED)
-- ✅ `GET /api/health` - Health check endpoint
-- ✅ `GET /api/auth/me` - Get current user
-- ✅ `POST /api/auth/register` - User registration
-- ✅ `POST /api/auth/login` - User login
-- ✅ `GET /api/services/dj` - Get all DJ profiles
-- ✅ `GET /api/services/photobooth` - Get photobooth info
-- ✅ `POST /api/availability/check` - Check availability with smart logic
-- ✅ `GET /api/availability/:provider/:year/:month` - Monthly availability
-- ✅ `POST /api/bookings/create` - Create booking with Stripe
-- ✅ `POST /api/webhooks/stripe` - Stripe payment webhooks
-- ✅ `POST /api/cart/add` - Add item to cart with pricing
+### Phase 4: Advanced Booking System (100%)
+- Real-Time Calendar with availability checking
+- Smart DJ Double-Booking Logic (morning/evening split, 3hr gap, max 2/day)
+- Photobooth Concurrent Booking (2 units)
+- Event Details Form with validation
+- Time conflict prevention at API level
 
-### Database Schema (OPTIMIZED - 8 Active Tables)
-- ✅ **Users** - Authentication and client accounts
-- ✅ **Bookings** - Event bookings with payment tracking
-- ✅ **Booking Time Slots** - DJ availability and conflict prevention
-- ✅ **Event Details** - Comprehensive event information
-- ✅ **Notifications** - Email/SMS notification logging
-- ✅ **Provider Contacts** - DJ/Photobooth contact info with phones
-- ✅ **Availability Blocks** - Manual date blocking by admin
-- ✅ **Results** - System tracking and analytics
-- ✅ 6 migrations applied successfully
-- ✅ Optimized: Removed 4 unused tables (wedding_details, bridal_party, vip_family, service_interest)
+### Phase 5: Stripe Payment Integration (100%)
+- Payment Intents with Stripe Elements
+- Dynamic pricing calculation (server-side)
+- Payment confirmation flow
+- Booking status management (pending > paid > confirmed)
 
-## 🚧 Features Not Yet Implemented
+### Phase 6: Notification System (Email 100% | SMS Ready)
+- Email notifications via Resend API
+- SMS code complete (waiting for Twilio credentials)
+- Database logging of all notifications
 
-### Phase 7: Admin Dashboard (NEXT PRIORITY)
-- ⏳ Admin authentication (separate from client auth)
-- ⏳ Dashboard overview with booking stats
-- ⏳ All bookings view (searchable/filterable)
-- ⏳ Booking detail management and editing
-- ⏳ Provider availability management
-- ⏳ Manual date blocking interface
-- ⏳ Reports and analytics
-- ⏳ Revenue tracking
+### Phase 6.5: Affiliate Tracking (100%)
+- Refersion integration for referral fees
+- Tracking pixel on all pages
+- Conversion tracking on bookings
 
-### Phase 8: Client Dashboard
-- ⏳ View own bookings
-- ⏳ Booking modification (if not within 48h)
-- ⏳ Payment history
-- ⏳ Download invoices
+### Phase 7: Admin Dashboard (80%)
+- Admin authentication (separate from client)
+- Dashboard overview with booking stats
+- All bookings view with status management
+- Provider management
+- **NEW**: Wedding Forms tab - view all client wedding planning forms
+- **NEW**: Invoices tab - manage invoices, auto-generate, send reminders
+- Remaining: search/filter, reports, analytics
 
-### Phase 9: Enhancements
-- ⏳ Forgot password functionality
-- ⏳ Email verification
-- ⏳ Booking reminders (7 days, 1 day before)
-- ⏳ Client testimonials section
-- ⏳ Photo gallery of past events
-- ⏳ Package deals (DJ + Photobooth bundles)
-- ⏳ Promo codes and discounts
-- ⏳ Mobile app (future consideration)
+### Phase 7.5: Automatic Invoicing (100% - NEW)
+- Auto-generate invoices for confirmed bookings
+- Invoice numbering system (INV-YYYY-XXXX)
+- Line items with service details
+- Payment tracking (amount paid, amount due)
+- Email reminders for overdue invoices
+- Admin can mark invoices as paid
+- Due date management (14 days default)
 
-## 📋 Recommended Next Steps
+### Phase 7.6: Wedding Planning Forms (100% - NEW)
+- Comprehensive 60+ field questionnaire
+- 10 sections: Couple Info, Ceremony, Cocktail Hour, Reception, Bridal Party, VIP/Family, Music Preferences, Special Moments, Logistics, Add-ons
+- Auto-triggered email after wedding booking
+- Progress saving per section
+- Admin detail viewer with all field categories
+- Must-play / Do-not-play song lists
+- Bridal party management
+- Memorial tribute section
 
-### Immediate Priority (Current Session)
-1. ✅ **3D Logo Integration** - Complete (all pages updated)
-2. ✅ **Provider Phone Numbers** - Updated (DJ Cease & Joey)
-3. ⏳ **Activate SMS Notifications** - Need Twilio credentials (see TWILIO_SETUP_REQUIRED.md)
-4. ⏳ **Deploy to Cloudflare Pages** - Production deployment
+## API Endpoints
 
-### Next Session Priority
-1. **Admin Dashboard** - Build comprehensive admin interface
-2. **Client Dashboard** - Allow clients to view/manage bookings
-3. **Booking Management** - Admin can edit/cancel bookings
-4. **Reports & Analytics** - Revenue and booking insights
-5. **Mobile Optimization** - Test and improve mobile experience
+### Public
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| POST | `/api/auth/register` | User registration |
+| POST | `/api/auth/login` | User login |
+| GET | `/api/auth/me` | Current user (auth required) |
+| GET | `/api/services/dj` | DJ profiles |
+| GET | `/api/services/photobooth` | Photobooth info |
+| GET | `/api/services/pricing` | All service pricing |
+| POST | `/api/availability/check` | Check availability |
+| GET | `/api/availability/:provider/:year/:month` | Monthly availability |
+| POST | `/api/bookings/create` | Create booking (auth required) |
+| POST | `/api/create-payment-intent` | Stripe payment intent (auth required) |
+| POST | `/api/payment/confirm` | Confirm payment |
 
-### Future Enhancements
-1. **Forgot Password** functionality
-2. **Email Verification** for new accounts
-3. **Booking Reminders** (automated 7-day, 1-day alerts)
-4. **Photo Gallery** of past events
-5. **Client Testimonials** section
-6. **Package Deals** (DJ + Photobooth bundles with discounts)
-7. **Promo Codes** system
+### Wedding Forms
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/wedding-form/:bookingId` | Get wedding form |
+| POST | `/api/wedding-form/:bookingId` | Save/update wedding form |
+| POST | `/api/wedding-form/:bookingId/send-email` | Send form email to client |
 
-## 🎨 Design Specifications
+### Invoicing
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/invoices/auto-generate` | Auto-generate missing invoices |
+| POST | `/api/invoices/:id/status` | Update invoice status |
+| POST | `/api/invoices/:id/send-reminder` | Send payment reminder email |
 
-### Color Palette
-- **Primary Red**: #E31E24
-- **Deep Red**: #8B0000
-- **Pure Black**: #000000
-- **Chrome Silver**: #C0C0C0
-- **Metallic Chrome**: #E8E8E8
-- **Dark Chrome**: #808080
-- **Accent Neon**: #FF0040
+### Admin
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/stats` | Dashboard statistics |
+| GET | `/api/admin/bookings` | All bookings with details |
+| POST | `/api/admin/bookings/:id/status` | Update booking status |
+| GET | `/api/admin/providers` | All providers |
+| GET | `/api/admin/invoices` | All invoices with client info |
+| GET | `/api/admin/wedding-forms` | All wedding forms with client info |
 
-### Theme
-- 80's, 90's, 2000's music era aesthetic
-- Neon glow effects on text and borders
-- Chrome metallic styling
-- Animated musical notes background
-- Retro cassette tape and vinyl record motifs (planned)
+### Pages
+| Path | Description |
+|------|-------------|
+| `/` | Landing page |
+| `/login` | User login |
+| `/register` | User registration |
+| `/dj-services` | DJ selection |
+| `/photobooth` | Photobooth info |
+| `/calendar` | Availability calendar |
+| `/event-details` | Event details form |
+| `/checkout` | Stripe payment |
+| `/booking-success` | Confirmation page |
+| `/wedding-planner/:bookingId` | Wedding planning form |
+| `/admin` | Admin dashboard |
+| `/employee/login` | Employee login |
+| `/contact` | Contact page |
+| `/about` | About page |
 
-## 🗄️ Data Architecture
+## Database Schema (12 Migrations, 11+ Tables)
 
-### Storage Services
-- **Cloudflare D1 Database** (SQLite) - All relational data
-- Local development uses `.wrangler/state/v3/d1` for SQLite
+### Core Tables
+- **users** - Client and admin accounts
+- **bookings** - Event bookings with Stripe payment tracking
+- **booking_time_slots** - DJ availability and conflict prevention
+- **event_details** - Event information (venue, guests, etc.)
+- **notifications** - Email/SMS logging
+- **provider_contacts** - DJ/Photobooth contact info
+- **availability_blocks** - Manual date blocking
+- **employees** - Employee portal accounts
+- **change_logs** - Audit trail for employee actions
 
-### Key Data Models
-- **Users**: Client accounts and admin users
-- **Bookings**: Event bookings with service provider assignments
-- **Event Details**: Comprehensive event information
-- **Wedding Details**: Bride/groom and bridal party information
-- **Availability Blocks**: Manual date blocking by admin
+### New Tables (Feb 2026)
+- **wedding_event_forms** - 60+ field wedding planning questionnaire
+- **invoices** - Automatic invoicing with Stripe integration
+- **invoice_line_items** - Detailed line items per invoice
+- **invoice_reminders** - Payment reminder tracking
 
-### Data Flow
-1. Client creates account (mandatory)
-2. Selects service (DJ or Photobooth)
-3. Views provider profiles
-4. Checks calendar availability
-5. Books date and submits event details
-6. Admin manages bookings and availability
-
-## 🚀 Technology Stack
-
+## Technology Stack
 - **Framework**: Hono (lightweight, edge-optimized)
-- **Runtime**: Cloudflare Workers
+- **Runtime**: Cloudflare Workers / Pages
 - **Database**: Cloudflare D1 (SQLite)
-- **Frontend**: Vanilla JavaScript + TailwindCSS
+- **Payments**: Stripe (Payment Intents + Invoices API)
+- **Email**: Resend API
+- **SMS**: Twilio (ready, needs credentials)
+- **Affiliates**: Refersion tracking
+- **Frontend**: Vanilla JavaScript + TailwindCSS CDN
 - **Icons**: Font Awesome 6.4.0
-- **Dev Server**: Wrangler Pages Dev
-- **Process Manager**: PM2
+- **Dev Server**: Wrangler Pages Dev + PM2
 
-## 💻 Development Commands
+## Development Commands
 
 ```bash
-# Database Management
+# Database
 npm run db:migrate:local   # Apply migrations locally
-npm run db:seed            # Seed database with test data
+npm run db:seed            # Seed test data
 npm run db:reset           # Reset local database
-npm run db:console:local   # Open local database console
 
 # Development
-npm run build              # Build the application
-npm run dev:sandbox        # Start dev server (sandbox)
-npm run clean-port         # Kill process on port 3000
-npm run test               # Test API health endpoint
+npm run build              # Build application
+npm run dev:sandbox        # Start dev server
+npm run clean-port         # Kill port 3000
 
-# PM2 Management
-pm2 start ecosystem.config.cjs  # Start service
-pm2 logs webapp --nostream      # Check logs
-pm2 restart webapp              # Restart service
-pm2 delete webapp               # Stop and remove service
+# PM2
+pm2 start ecosystem.config.cjs
+pm2 logs webapp --nostream
+pm2 restart webapp
 
 # Deployment
 npm run deploy:prod        # Deploy to Cloudflare Pages
 ```
 
-## 🔐 Default Admin Credentials (Development)
-- **Email**: admin@inthehouseproductions.com
-- **Password**: Admin123!
+## Default Credentials (Development Only)
+- **Admin**: admin@inthehouseproductions.com / Admin123!
+- **Employees**: (various)@inthehouseproductions.com / Employee123!
 
-⚠️ **Change these credentials before production deployment!**
+**Change these before production!**
 
-## 📊 Current Project Status
+## Features Not Yet Implemented
 
-**Overall Progress**: ~90% Complete (Core Features)
+### Phase 8: Client Dashboard
+- View own bookings and history
+- Download invoices as PDF
+- Edit wedding planning form from dashboard
+- Payment history
 
-- ✅ Phase 1: Foundation & UI (100%)
-- ✅ Phase 2: Authentication (100%)
-- ✅ Phase 3: DJ Services (100%)
-- ✅ Phase 4: Booking System (100%)
-- ✅ Phase 5: Photobooth (100%)
-- ✅ Phase 6: Stripe Payments (100%)
-- ✅ Phase 6.5: Notifications (Email 100% | SMS 95% - needs Twilio credentials)
-- ⏳ Phase 7: Admin Dashboard (0%)
-- ⏳ Phase 8: Client Dashboard (0%)
-- 🔄 Phase 9: Polish & Testing (70%)
+### Phase 9: Enhancements
+- Forgot password functionality
+- Email verification for new accounts
+- Booking reminders (7 days, 1 day before)
+- Client testimonials section
+- Photo gallery of past events
+- Package deals (DJ + Photobooth bundles)
+- Promo codes and discounts
+- Advanced admin reports and analytics
+- Search/filter on admin bookings
 
-## 📁 Project Structure
+### Notification Enhancements
+- Activate SMS (needs Twilio credentials)
+- Automated invoice overdue reminders (cron-style)
+- Booking modification notifications
 
+## DJ Profiles
+
+### DJ Cease (Mike Cecil) - Priority 1
+- 20+ Years | Weddings, Top 40, Hip-Hop, R&B
+- Phone: +1-727-359-4701
+
+### DJ Elev8 (Brad Powell) - Priority 2
+- 15+ Years | High-Energy, EDM, House, Top 40
+- Phone: +1-859-314-4443
+
+### TKOtheDJ (Joey Tate) - Priority 3
+- 10+ Years | Versatile, Hip-Hop, Pop, Rock
+- Phone: +1-859-803-2755
+
+### Photobooth
+- Maria Cecil (Unit 1) & Cora Scarborough (Unit 2)
+- 2 Professional Units, can book same date
+
+## Venue Partners
+- DK Farms & Gardens
+- Big Red Barn
+- Garden Gate Estate
+- Still Creek Farm
+- The Barn Yard WC
+
+## Project Structure
 ```
 webapp/
 ├── src/
-│   ├── index.tsx           # Main Hono application
-│   └── renderer.tsx        # JSX renderer (unused currently)
-├── public/
-│   └── static/
-│       └── style.css       # Custom styles (minimal)
-├── migrations/
-│   └── 0001_initial_schema.sql  # Database schema
-├── seed.sql                # Test data
-├── dist/                   # Build output (generated)
-├── ecosystem.config.cjs    # PM2 configuration
-├── wrangler.jsonc          # Cloudflare configuration
-├── package.json            # Dependencies and scripts
-├── DESIGN_SPECIFICATION.md # Complete design document (65+ pages)
-└── README.md               # This file
+│   ├── index.tsx              # Main Hono app (~8000+ lines)
+│   ├── auth.ts                # Auth utilities
+│   ├── auth-middleware.ts      # JWT middleware
+│   ├── security-middleware.ts  # CSP, rate limiting, headers
+│   ├── accessibility-helpers.ts
+│   └── seo-helpers.ts
+├── public/static/             # Static assets (logos, CSS)
+├── migrations/                # 12 D1 migration files
+│   ├── 0001_initial_schema.sql
+│   ├── ...
+│   └── 0012_wedding_event_forms.sql
+├── dist/                      # Build output
+├── ecosystem.config.cjs       # PM2 config
+├── wrangler.jsonc             # Cloudflare config
+├── package.json
+├── seed.sql                   # Test data
+└── README.md
 ```
 
-## 🎯 Business Goals
+## Current Status
 
-1. **Streamline client bookings** - Reduce friction in booking process
-2. **Prevent double-booking** - Automatic availability management
-3. **Transparent service info** - Detailed provider profiles
-4. **Memorable experience** - Retro music theme branding
-5. **Centralized management** - All-in-one admin dashboard
+**Overall Progress**: ~95% Complete
 
-## 📞 DJ Profiles
-
-### 1. DJ Cease (Mike Cecil) - Priority 1
-- 20+ Years Experience
-- Specialties: Weddings, Top 40, Hip-Hop, R&B
-- First choice for automatic selection
-
-### 2. DJ Elev8 (Brad Powell) - Priority 2
-- 15+ Years Experience
-- Specialties: High-Energy, EDM, House, Top 40
-- Second choice for automatic selection
-
-### 3. TKOtheDJ (Joey Tate) - Priority 3
-- 10+ Years Experience
-- Specialties: Versatile, Hip-Hop, Pop, Rock
-- Third choice for automatic selection
-
-### Photobooth (Maria Cecil & Cora Scarborough)
-- 2 Professional Units
-- Can book same date twice
-- Unlimited prints, custom backdrops, digital gallery
-
-## 📧 Notification System
-
-### Email Notifications (✅ ACTIVE)
-- **Provider**: Resend API
-- **Status**: Fully operational
-- **Triggers**:
-  - Client booking confirmation with event details
-  - Provider booking alert with client contact info
-- **Tracking**: All notifications logged in database
-
-### SMS Notifications (⏳ READY TO ACTIVATE)
-- **Provider**: Twilio REST API
-- **Status**: Code complete, waiting for credentials
-- **Provider Phones**:
-  - DJ Cease (Mike Cecil): +1-727-359-4701 ✅
-  - TKOtheDJ (Joey Tate): +1-352-801-5099 ✅
-  - DJ Elev8 (Brad Powell): +1-816-217-1094 (fallback)
-  - Photobooth Units: +1-816-217-1094 (fallback)
-- **Setup**: See `TWILIO_SETUP_REQUIRED.md` for activation instructions
-- **Cost**: ~$2/month for 100 bookings (very affordable)
-
-### Notification Flow
-```
-Booking Created
-    ↓
-┌───────────────────┐
-│  Booking API      │
-└────────┬──────────┘
-         ↓
-    ┌────┴────┐
-    ↓         ↓
-┌───▼────┐ ┌─▼─────┐
-│ Email  │ │  SMS  │
-│  ✅    │ │  ⏳   │
-└────────┘ └───────┘
-    ↓         ↓
-┌───▼─────────▼───┐
-│  Database Log   │
-└─────────────────┘
-```
-
-## 🔗 Important Links
-
-- **Live Production**: https://e420ce53.webapp-2mf.pages.dev
-- **Permanent URL**: https://webapp-2mf.pages.dev
-- **Live Sandbox**: https://3000-iep0ibbw2vbqh3zzjh4nq-2b54fc91.sandbox.novita.ai
-- **Documentation**:
-  - `CALENDAR_FIX_COMPLETE.md` - Calendar loading bug fix (2026-01-10)
-  - `BUGFIX_CALENDAR_LOADING.md` - Bug analysis and resolution
-  - `FINAL_STATUS.md` - Complete deployment status
-  - `LOGO_VERIFICATION.md` - 3D logo integration verification
-  - `NOTIFICATION_STATUS.md` - Complete notification system status
-  - `TWILIO_SETUP_REQUIRED.md` - SMS activation guide
-  - `BOOKING_LOGIC.md` - Advanced booking rules documentation
-  - `DESIGN_SPECIFICATION.md` - Original design requirements
-- **GitHub**: (To be set up)
-- **Cloudflare Pages**: ✅ Deployed and operational
-
-## 📝 Recent Updates
-
-### 2026-01-10 - Calendar Loading Bug Fixed ✅
-- ✅ Fixed critical calendar loading issue (CAL-001)
-- ✅ Resolved variable scope problem affecting photobooth bookings
-- ✅ Fixed ID mapping mismatch (unit1/unit2 → photobooth_unit1/photobooth_unit2)
-- ✅ All 11 automated tests passing (100% success rate)
-- ✅ Deployed to production (e420ce53)
-- ✅ Calendar now loads correctly for both DJ and Photobooth bookings
-- 📄 New Documentation:
-  - CALENDAR_FIX_COMPLETE.md - Complete fix documentation
-  - BUGFIX_CALENDAR_LOADING.md - Bug analysis
-  - automated-calendar-test.sh - Automated test suite
-  - test-calendar-final.html - Interactive test UI
-
-### 2025-12-19 - Complete 3D Logo Integration & Provider Updates
-- ✅ Integrated ultra-realistic 3D chrome logos on ALL 7 pages
-- ✅ Updated provider phone numbers (DJ Cease: 727-359-4701, Joey: 352-801-5099)
-- ✅ Created comprehensive notification system documentation
-- ✅ Verified logo consistency across entire site (100%)
-- ✅ Build size optimized: 421.03 kB
-- 📄 New Documentation:
-  - LOGO_VERIFICATION.md - Complete logo verification report
-  - NOTIFICATION_STATUS.md - Notification system status
-  - TWILIO_SETUP_REQUIRED.md - SMS activation guide
-
-### 2025-12-18 - System Calibration Complete
-- ✅ Database optimization (dropped 4 unused tables)
-- ✅ Code organization (archived 10 outdated docs)
-- ✅ System health: 98/100 (Production-ready)
-- ✅ Security verified: 100% (no hardcoded secrets)
-- ✅ Performance metrics optimized
-
-### 2025-12-17 - Complete Booking System Live
-- ✅ Advanced booking API with DJ double-booking logic
-- ✅ Real-time calendar with availability checking
-- ✅ Event details form with validation
-- ✅ Stripe payment integration
-- ✅ Email notifications via Resend
-- ✅ SMS notification system (code complete)
-- ✅ Complete user flow: Selection → Booking → Payment
-
-### 2025-11-18 - Initial Launch
-- Project initialized with Hono + Cloudflare Pages
-- D1 database created and migrated
-- Landing page with animated background deployed
-- API endpoints implemented
-- Development server running on PM2
+| Phase | Status | Progress |
+|-------|--------|----------|
+| Phase 1: Foundation & UI | Complete | 100% |
+| Phase 2: Authentication | Complete | 100% |
+| Phase 3: DJ Services | Complete | 100% |
+| Phase 4: Booking System | Complete | 100% |
+| Phase 5: Stripe Payments | Complete | 100% |
+| Phase 6: Notifications | Email Active / SMS Ready | 95% |
+| Phase 6.5: Affiliate Tracking | Complete | 100% |
+| Phase 7: Admin Dashboard | Active | 80% |
+| Phase 7.5: Auto Invoicing | **Complete (NEW)** | 100% |
+| Phase 7.6: Wedding Forms | **Complete (NEW)** | 100% |
+| Phase 8: Client Dashboard | Not Started | 0% |
+| Phase 9: Enhancements | Partial | 20% |
 
 ---
 
-**Last Updated**: 2026-01-10  
-**Version**: 0.9.1 (Beta - Calendar Fix Deployed)  
-**Status**: ✅ Production-Ready (100%) | ✅ All Booking Flows Operational  
-**Latest Deploy**: e420ce53 (https://e420ce53.webapp-2mf.pages.dev)
+**Last Updated**: 2026-02-07
+**Version**: 1.0.0 (Wedding Forms + Auto Invoicing)
+**Status**: Production-Ready | All Core Flows Operational
