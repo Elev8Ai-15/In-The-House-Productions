@@ -22,7 +22,7 @@ export async function hashPassword(password: string): Promise<string> {
     {
       name: 'PBKDF2',
       salt: salt,
-      iterations: 10000, // Reduced from 100000 for better performance
+      iterations: 100000, // OWASP recommended minimum for PBKDF2-SHA256 (new hashes)
       hash: 'SHA-256'
     },
     keyMaterial,
@@ -39,50 +39,37 @@ export async function hashPassword(password: string): Promise<string> {
   return btoa(String.fromCharCode(...combined))
 }
 
-// Verify password against hash
+// Verify password against hash (supports both old 10k and new 100k iteration hashes)
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   try {
-    // Decode the hash
     const combined = Uint8Array.from(atob(hash), c => c.charCodeAt(0))
     const salt = combined.slice(0, 16)
     const storedHash = combined.slice(16)
-    
     const passwordBuffer = encoder.encode(password)
-    
-    // Import password as key
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      passwordBuffer,
-      'PBKDF2',
-      false,
-      ['deriveBits']
-    )
-    
-    // Derive hash using same salt (matching reduced iterations)
-    const hashBuffer = await crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: salt,
-        iterations: 10000, // Matching the hash function
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      256
-    )
-    
-    const newHash = new Uint8Array(hashBuffer)
-    
-    // Compare hashes
-    if (newHash.length !== storedHash.length) return false
-    
-    let match = true
-    for (let i = 0; i < newHash.length; i++) {
-      if (newHash[i] !== storedHash[i]) {
-        match = false
+
+    // Try current iteration count first, then legacy fallback
+    for (const iterations of [100000, 10000]) {
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw', passwordBuffer, 'PBKDF2', false, ['deriveBits']
+      )
+
+      const hashBuffer = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+        keyMaterial, 256
+      )
+
+      const derivedHash = new Uint8Array(hashBuffer)
+      if (derivedHash.length !== storedHash.length) continue
+
+      // Constant-time comparison to prevent timing attacks
+      let diff = 0
+      for (let i = 0; i < derivedHash.length; i++) {
+        diff |= derivedHash[i] ^ storedHash[i]
       }
+      if (diff === 0) return true
     }
-    
-    return match
+
+    return false
   } catch (error) {
     return false
   }

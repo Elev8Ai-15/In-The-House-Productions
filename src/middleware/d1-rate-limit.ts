@@ -27,9 +27,10 @@ function cleanupMemoryStore() {
  * Creates/uses a rate_limits table in D1 for persistent tracking.
  * Falls back to in-memory if D1 is unavailable.
  */
-export function d1RateLimit(maxRequests: number = 100, windowMs: number = 60000, maxFailures?: number) {
-  let tableCreated = false
+// Module-level flag: table creation only needs to happen once per isolate lifecycle
+let tableEnsured = false
 
+export function d1RateLimit(maxRequests: number = 100, windowMs: number = 60000, maxFailures?: number) {
   return async (c: Context, next: Next) => {
     const DB = c.env?.DB
 
@@ -38,8 +39,8 @@ export function d1RateLimit(maxRequests: number = 100, windowMs: number = 60000,
       return inMemoryRateLimit(c, next, maxRequests, windowMs, maxFailures)
     }
 
-    // Ensure rate_limits table exists (once per worker lifecycle)
-    if (!tableCreated) {
+    // Ensure rate_limits table exists (once per isolate lifecycle)
+    if (!tableEnsured) {
       try {
         await DB.prepare(`
           CREATE TABLE IF NOT EXISTS rate_limits (
@@ -51,10 +52,10 @@ export function d1RateLimit(maxRequests: number = 100, windowMs: number = 60000,
             failure_reset INTEGER DEFAULT 0
           )
         `).run()
-        tableCreated = true
+        tableEnsured = true
       } catch {
-        // Table might already exist or DB error - continue with in-memory
-        return inMemoryRateLimit(c, next, maxRequests, windowMs, maxFailures)
+        // Table likely already exists (migration 0013); mark as ensured and continue
+        tableEnsured = true
       }
     }
 

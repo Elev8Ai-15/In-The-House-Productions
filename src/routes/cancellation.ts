@@ -7,7 +7,8 @@ import { Hono } from 'hono'
 import { verifyToken } from '../auth'
 import { getJWTSecret } from '../auth-middleware'
 import type { Bindings } from '../types'
-import Stripe from 'stripe'
+// Stripe is imported dynamically only when refund is actually needed
+// to avoid bloating the cancellation route bundle
 
 const cancellation = new Hono<{ Bindings: Bindings }>()
 
@@ -194,6 +195,7 @@ cancellation.post('/api/bookings/:id/refund', async (c) => {
 
     // If Stripe payment exists, process refund through Stripe
     if (booking.stripe_payment_intent_id && STRIPE_SECRET_KEY && !STRIPE_SECRET_KEY.includes('mock')) {
+      const { default: Stripe } = await import('stripe')
       const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' as any })
       
       const refundAmount = amount ? Math.round(amount * 100) : Math.round((booking.total_price || 0) * 100)

@@ -23,8 +23,7 @@ import {
   generateRobotsTxt
 } from './seo-helpers'
 import {
-  securityHeaders,
-  rateLimit
+  securityHeaders
 } from './security-middleware'
 import {
   generateSkipLinks,
@@ -143,11 +142,12 @@ app.route('/', cancellationRoutes)
 // Favicon - inline SVG to prevent 404
 app.get('/favicon.ico', (c) => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="4" fill="#E31E24"/><text x="16" y="24" text-anchor="middle" font-size="22" font-weight="bold" fill="white" font-family="Arial">H</text></svg>`
-  const svgBase64 = btoa(svg)
-  const binary = atob(svgBase64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Response(bytes, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } })
+  return new Response(svg, {
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=604800, immutable'
+    }
+  })
 })
 
 app.get('/robots.txt', (c) => {
@@ -240,10 +240,8 @@ app.post('/api/auth/register', async (c) => {
     
   } catch (error: any) {
     // Log only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Registration error:', error)
-    }
-    return c.json({ error: 'Registration failed', details: error.message }, 500)
+    console.error('Registration error:', error)
+    return c.json({ error: 'Registration failed' }, 500)
   }
 })
 
@@ -306,10 +304,8 @@ app.post('/api/auth/login', async (c) => {
     
   } catch (error: any) {
     // Log only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Login error:', error)
-    }
-    return c.json({ error: 'Login failed', details: error.message }, 500)
+    console.error('Login error:', error)
+    return c.json({ error: 'Login failed' }, 500)
   }
 })
 
@@ -421,7 +417,7 @@ app.post('/api/setup/reset-admin', async (c) => {
     
   } catch (error: any) {
     console.error('Admin password reset error:', error)
-    return c.json({ error: 'Password reset failed', details: error.message }, 500)
+    return c.json({ error: 'Password reset failed' }, 500)
   }
 })
 
@@ -458,7 +454,7 @@ app.post('/api/setup/reset-employees', async (c) => {
       updated
     })
   } catch (error: any) {
-    return c.json({ error: 'Failed to reset employee passwords', details: error.message }, 500)
+    return c.json({ error: 'Failed to reset employee passwords' }, 500)
   }
 })
 
@@ -551,7 +547,7 @@ app.post('/api/setup/admin', async (c) => {
     
   } catch (error: any) {
     console.error('Admin setup error:', error)
-    return c.json({ error: 'Admin setup failed', details: error.message }, 500)
+    return c.json({ error: 'Admin setup failed' }, 500)
   }
 })
 
@@ -799,13 +795,13 @@ app.post('/api/setup/stripe-products', async (c) => {
     
   } catch (error: any) {
     console.error('Stripe setup error:', error)
-    return c.json({ error: 'Stripe setup failed', details: error.message }, 500)
+    return c.json({ error: 'Stripe setup failed' }, 500)
   }
 })
 
 // Get Stripe public configuration (publishable key for frontend)
 app.get('/api/stripe/config', (c) => {
-  const publishableKey = c.env?.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY
+  const publishableKey = c.env?.STRIPE_PUBLISHABLE_KEY
   
   if (!publishableKey || publishableKey.includes('YOUR_') || publishableKey.includes('not_configured')) {
     return c.json({ 
@@ -991,7 +987,7 @@ app.post('/api/employee/login', async (c) => {
     
   } catch (error: any) {
     console.error('Employee login error:', error)
-    return c.json({ error: 'Login failed', details: error.message }, 500)
+    return c.json({ error: 'Login failed' }, 500)
   }
 })
 
@@ -1167,7 +1163,7 @@ app.post('/api/employee/block-date', async (c) => {
     
   } catch (error: any) {
     console.error('Block date error:', error)
-    return c.json({ error: 'Failed to block date', details: error.message }, 500)
+    return c.json({ error: 'Failed to block date' }, 500)
   }
 })
 
@@ -1864,7 +1860,7 @@ app.get('/dj-editor', (c) => {
                 URL.revokeObjectURL(url);
                 
                 // Data exported successfully
-                showSuccess('JSON exported! Check your downloads folder for dj_profiles.json', 'Export Complete');
+                alert('JSON exported! Check your downloads folder for dj_profiles.json');
             }
             
             // Initialize on load
@@ -2027,13 +2023,15 @@ app.post('/api/cart/add', async (c) => {
       return c.json({ error: 'Invalid service' }, 400)
     }
     
-    // Validate hours
-    if (hours < service.minHours) {
-      return c.json({ error: `Minimum ${service.minHours} hours required` }, 400)
+    // Validate hours (minHours defaults to baseHours if not set)
+    const minRequired = service.minHours || service.baseHours || 1
+    if (hours < minRequired) {
+      return c.json({ error: `Minimum ${minRequired} hours required` }, 400)
     }
     
-    // Calculate price
-    const subtotal = service.basePrice + (service.hourlyRate * hours)
+    // Calculate price: base price covers baseHours, then hourlyRate for extra hours
+    const additionalHours = Math.max(0, hours - (service.baseHours || hours))
+    const subtotal = service.basePrice + (service.hourlyRate * additionalHours)
     
     const cartItem = {
       id: `${serviceId}-${Date.now()}`,
@@ -2151,7 +2149,7 @@ app.post('/api/create-payment-intent', async (c) => {
     }
     
     // Get Stripe API key
-    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
     const isDevelopmentMode = !STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock') || STRIPE_SECRET_KEY.includes('Mock')
     
     // DEVELOPMENT MODE: Return mock client secret
@@ -2268,7 +2266,7 @@ app.post('/api/create-payment-intent', async (c) => {
     
   } catch (error: any) {
     console.error('Payment intent error:', error)
-    return c.json({ error: error.message || 'Failed to create payment' }, 500)
+    return c.json({ error: 'Failed to create payment' }, 500)
   }
 })
 
@@ -2477,13 +2475,14 @@ app.post('/api/checkout/create-session', async (c) => {
       return c.json({ error: 'Cart is empty' }, 400)
     }
     
-    // Calculate total
+    // Calculate total (base price covers baseHours, hourlyRate for extra hours)
     let total = 0
     const lineItems = items.map((item: any) => {
       const service = servicePricing[item.serviceId as keyof typeof servicePricing]
       if (!service) throw new Error('Invalid service')
       
-      const subtotal = service.basePrice + (service.hourlyRate * item.hours)
+      const additionalHours = Math.max(0, item.hours - (service.baseHours || item.hours))
+      const subtotal = service.basePrice + (service.hourlyRate * additionalHours)
       total += subtotal
       
       return {
@@ -2500,7 +2499,7 @@ app.post('/api/checkout/create-session', async (c) => {
     })
     
     // Get Stripe API key from environment
-    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
     const isDevelopmentMode = !STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.includes('mock')
     
     // DEVELOPMENT MODE: Mock payment for testing without Stripe
@@ -2569,7 +2568,7 @@ app.post('/api/checkout/create-session', async (c) => {
     
   } catch (error: any) {
     console.error('Checkout session error:', error)
-    return c.json({ error: error.message || 'Failed to create checkout session' }, 500)
+    return c.json({ error: 'Failed to create checkout session' }, 500)
   }
 })
 
@@ -2579,8 +2578,8 @@ app.post('/api/webhook/stripe', async (c) => {
     const signature = c.req.header('stripe-signature')
     const body = await c.req.text()
     
-    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY
-    const WEBHOOK_SECRET = c.env?.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET
+    const STRIPE_SECRET_KEY = c.env?.STRIPE_SECRET_KEY
+    const WEBHOOK_SECRET = c.env?.STRIPE_WEBHOOK_SECRET
     
     if (!STRIPE_SECRET_KEY) {
       return c.json({ error: 'Stripe not configured' }, 500)
@@ -2791,7 +2790,7 @@ app.post('/api/availability/check', async (c) => {
     return c.json(result)
   } catch (error: any) {
     console.error('Availability check error:', error)
-    return c.json({ error: 'Failed to check availability', details: error.message }, 500)
+    return c.json({ error: 'Failed to check availability' }, 500)
   }
 })
 
@@ -2905,7 +2904,7 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
     return c.json(availability)
   } catch (error: any) {
     console.error('Fetch availability error:', error)
-    return c.json({ error: 'Failed to fetch availability', details: error.message }, 500)
+    return c.json({ error: 'Failed to fetch availability' }, 500)
   }
 })
 
@@ -3063,7 +3062,7 @@ app.post('/api/bookings/create', async (c) => {
     
   } catch (error: any) {
     console.error('Booking creation error:', error)
-    return c.json({ error: 'Failed to create booking', details: error.message }, 500)
+    return c.json({ error: 'Failed to create booking' }, 500)
   }
 })
 
@@ -3100,12 +3099,22 @@ async function sendBookingNotifications(env: any, booking: any) {
     throw new Error('User or provider not found')
   }
   
-  // Initialize Resend for emails
-  const { Resend } = await import('resend')
-  const resend = new Resend(RESEND_API_KEY)
+  // Use Resend REST API directly via fetch (avoids dynamic import overhead)
+  const sendEmail = async (to: string | string[], subject: string, html: string) => {
+    return fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'In The House Productions <noreply@inthehouseproductions.com>',
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html
+      })
+    })
+  }
   
   // Use Twilio REST API directly via fetch to avoid large dependency
-  const twilioAuth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')
+  const twilioAuth = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)
   
   // Format event details
   const eventInfo = `
@@ -3120,11 +3129,10 @@ Price: $${booking.totalPrice}
   `.trim()
   
   // Send email to client
-  await resend.emails.send({
-    from: 'In The House Productions <noreply@inthehouseproductions.com>',
-    to: user.email,
-    subject: `Booking Confirmation - ${booking.eventDetails.eventName}`,
-    html: `
+  await sendEmail(
+    user.email,
+    `Booking Confirmation - ${booking.eventDetails.eventName}`,
+    `
       <h2>Booking Confirmed!</h2>
       <p>Hi ${user.full_name},</p>
       <p>Your booking has been confirmed. Here are the details:</p>
@@ -3134,14 +3142,13 @@ Price: $${booking.totalPrice}
       <p>We're excited to make your event amazing!</p>
       <p>- In The House Productions Team</p>
     `
-  })
+  )
   
   // Send email to provider
-  await resend.emails.send({
-    from: 'In The House Productions <noreply@inthehouseproductions.com>',
-    to: [provider.email, 'mcecil38@yahoo.com'], // Send to provider AND Michael Cecil
-    subject: `New Booking - ${booking.eventDate}`,
-    html: `
+  await sendEmail(
+    [provider.email, 'mcecil38@yahoo.com'], // Send to provider AND Michael Cecil
+    `New Booking - ${booking.eventDate}`,
+    `
       <h2>New Booking Alert!</h2>
       <p>Hi ${provider.provider_name},</p>
       <p>You have a new booking:</p>
@@ -3152,7 +3159,7 @@ Price: $${booking.totalPrice}
       <p>Please confirm receipt and reach out to the client to finalize details.</p>
       <p>Booking ID: ${booking.bookingId}</p>
     `
-  })
+  )
   
   // Send SMS to provider via Twilio REST API
   const smsBody = `NEW BOOKING: ${booking.eventDetails.eventName} on ${booking.eventDate} at ${booking.startTime}. Client: ${user.full_name} (${user.phone}). Check email for details.`
