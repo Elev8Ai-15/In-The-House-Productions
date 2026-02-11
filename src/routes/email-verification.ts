@@ -46,7 +46,7 @@ async function sendVerificationEmail(env: any, user: any, baseUrl: string): Prom
   }
 
   try {
-    await fetch('https://api.resend.com/emails', {
+    const emailRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -73,6 +73,10 @@ async function sendVerificationEmail(env: any, user: any, baseUrl: string): Prom
         `
       })
     })
+    if (!emailRes.ok) {
+      console.error('Verification email failed:', emailRes.status, await emailRes.text().catch(() => ''))
+      return false
+    }
     return true
   } catch {
     return false

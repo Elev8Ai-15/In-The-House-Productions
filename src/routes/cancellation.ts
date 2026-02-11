@@ -4,10 +4,19 @@
 // GET /api/bookings/my-bookings - Get user's bookings
 
 import { Hono } from 'hono'
-import { verifyToken } from '../auth'
+import { verifyToken, sanitizeInput } from '../auth'
 import { getJWTSecret } from '../auth-middleware'
 import type { Bindings } from '../types'
 import Stripe from 'stripe'
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 const cancellation = new Hono<{ Bindings: Bindings }>()
 
@@ -84,6 +93,11 @@ cancellation.post('/api/bookings/:id/cancel', async (c) => {
     let refundEligible = false
     let refundPercentage = 0
 
+    // Prevent non-admin users from cancelling past events
+    if (hoursUntilEvent <= 0 && payload.role !== 'admin') {
+      return c.json({ error: 'Cannot cancel a booking after the event date has passed' }, 400)
+    }
+
     if (hoursUntilEvent > 168) { // 7+ days: full refund
       refundEligible = true
       refundPercentage = 100
@@ -121,7 +135,7 @@ cancellation.post('/api/bookings/:id/cancel', async (c) => {
     // Send cancellation notification
     const RESEND_API_KEY = c.env.RESEND_API_KEY
     if (RESEND_API_KEY && !RESEND_API_KEY.includes('mock')) {
-      await fetch('https://api.resend.com/emails', {
+      const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,7 +146,7 @@ cancellation.post('/api/bookings/:id/cancel', async (c) => {
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; color: #fff; padding: 30px; border-radius: 15px;">
               <h1 style="color: #E31E24; text-align: center;">Booking Cancelled</h1>
               <p style="color: #C0C0C0;">Booking #${bookingId} for ${booking.event_date} has been cancelled.</p>
-              ${reason ? `<p style="color: #C0C0C0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+              ${reason ? `<p style="color: #C0C0C0;"><strong>Reason:</strong> ${escapeHtml(String(reason))}</p>` : ''}
               ${refundEligible ? `
                 <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; border-radius: 10px; padding: 15px; margin: 15px 0;">
                   <p style="color: #22c55e; font-weight: bold;">Refund Eligible: ${refundPercentage}%</p>
@@ -150,6 +164,9 @@ cancellation.post('/api/bookings/:id/cancel', async (c) => {
           `
         })
       })
+      if (!emailRes.ok) {
+        console.error('Cancellation email failed:', emailRes.status, await emailRes.text().catch(() => ''))
+      }
     }
 
     return c.json({
@@ -192,12 +209,22 @@ cancellation.post('/api/bookings/:id/refund', async (c) => {
       return c.json({ error: 'Booking not found' }, 404)
     }
 
+    // Validate refund amount if provided
+    if (amount !== undefined) {
+      if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+        return c.json({ error: 'Refund amount must be a positive number' }, 400)
+      }
+      if (booking.total_price && amount > booking.total_price) {
+        return c.json({ error: 'Refund amount cannot exceed the booking total' }, 400)
+      }
+    }
+
     // If Stripe payment exists, process refund through Stripe
     if (booking.stripe_payment_intent_id && STRIPE_SECRET_KEY && !STRIPE_SECRET_KEY.includes('mock')) {
-      const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' as any })
-      
+      const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+
       const refundAmount = amount ? Math.round(amount * 100) : Math.round((booking.total_price || 0) * 100)
-      
+
       const refund = await stripe.refunds.create({
         payment_intent: booking.stripe_payment_intent_id,
         amount: refundAmount,

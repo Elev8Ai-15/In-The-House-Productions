@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { serveStatic } from 'hono/cloudflare-workers'
+import { serveStatic } from 'hono/cloudflare-pages'
 import Stripe from 'stripe'
 import {
   hashPassword,
@@ -121,7 +121,7 @@ app.use('/api/*', cors())
 app.use('/api/*', csrfProtection)
 
 // Serve static files
-app.use('/static/*', serveStatic({ root: './public' }))
+app.use('/static/*', serveStatic())
 
 // D1-backed rate limiting with progressive lockout
 app.use('/api/auth/login', d1RateLimit(5, 60000, 15)) // 5 requests per minute, lockout after 15 failures
@@ -687,7 +687,7 @@ app.post('/api/setup/stripe-products', async (c) => {
     }
     
     // Initialize Stripe
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' })
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
     
     // Verify Stripe connection
     let accountInfo
@@ -710,53 +710,54 @@ app.post('/api/setup/stripe-products', async (c) => {
     
     for (const [serviceKey, service] of Object.entries(stripeServiceCatalog)) {
       try {
+        const svc = service as Record<string, any>
         let product = existingByKey.get(serviceKey)
-        
+
         // Create product if not exists
         if (!product) {
           product = await stripe.products.create({
-            name: service.name,
-            description: service.description,
+            name: svc.name,
+            description: svc.description,
             active: true,
             metadata: {
               service_key: serviceKey,
-              category: service.category,
-              ...service.metadata
+              category: svc.category,
+              ...svc.metadata
             }
           })
         }
-        
+
         // Check existing prices
         const existingPrices = await stripe.prices.list({ product: product.id, active: true, limit: 10 })
-        let basePrice = existingPrices.data.find(p => 
-          p.metadata.price_type === 'base' && p.unit_amount === service.basePrice
+        let basePrice = existingPrices.data.find(p =>
+          p.metadata.price_type === 'base' && p.unit_amount === svc.basePrice
         )
-        
+
         // Create base price if not exists
         if (!basePrice) {
           basePrice = await stripe.prices.create({
             product: product.id,
-            unit_amount: service.basePrice,
+            unit_amount: svc.basePrice,
             currency: 'usd',
             metadata: {
               price_type: 'base',
               service_key: serviceKey,
-              base_hours: String(service.baseHours || 0)
+              base_hours: String(svc.baseHours || 0)
             }
           })
         }
-        
+
         // Create hourly price if applicable
         let hourlyPrice = null
-        if (service.hourlyRate) {
-          hourlyPrice = existingPrices.data.find(p => 
-            p.metadata.price_type === 'hourly' && p.unit_amount === service.hourlyRate
+        if (svc.hourlyRate) {
+          hourlyPrice = existingPrices.data.find(p =>
+            p.metadata.price_type === 'hourly' && p.unit_amount === svc.hourlyRate
           )
-          
+
           if (!hourlyPrice) {
             hourlyPrice = await stripe.prices.create({
               product: product.id,
-              unit_amount: service.hourlyRate,
+              unit_amount: svc.hourlyRate,
               currency: 'usd',
               metadata: {
                 price_type: 'hourly',
@@ -765,14 +766,14 @@ app.post('/api/setup/stripe-products', async (c) => {
             })
           }
         }
-        
+
         results[serviceKey] = {
           productId: product.id,
-          productName: service.name,
+          productName: svc.name,
           basePriceId: basePrice.id,
-          baseAmount: `$${(service.basePrice / 100).toFixed(2)}`,
+          baseAmount: `$${(svc.basePrice / 100).toFixed(2)}`,
           hourlyPriceId: hourlyPrice?.id || null,
-          hourlyAmount: service.hourlyRate ? `$${(service.hourlyRate / 100).toFixed(2)}/hr` : null,
+          hourlyAmount: svc.hourlyRate ? `$${(svc.hourlyRate / 100).toFixed(2)}/hr` : null,
           status: existingByKey.has(serviceKey) ? 'existing' : 'created'
         }
         
@@ -889,7 +890,7 @@ app.get('/api/setup/stripe-status', async (c) => {
   }
   
   try {
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-11-20.acacia' })
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
     const account = await stripe.accounts.retrieve()
     const products = await stripe.products.list({ limit: 100, active: true })
     
@@ -1899,19 +1900,13 @@ app.get('/api/services/photobooth', (c) => {
 
 // Service pricing configuration
 const servicePricing = {
-  // DJ Services
+  // DJ Services (default party pricing; use dj_wedding for weddings)
   dj: {
     name: 'DJ Service',
-    party: {
-      basePrice: 500,      // Up to 4 hours
-      baseHours: 4,
-      hourlyRate: 100      // $100 per additional hour
-    },
-    wedding: {
-      basePrice: 850,      // Up to 5 hours
-      baseHours: 5,
-      hourlyRate: 100      // $100 per additional hour
-    }
+    basePrice: 500,        // Parties up to 4 hrs
+    baseHours: 4,
+    hourlyRate: 100,       // $100 per additional hour
+    minHours: 4
   },
   
   // Individual DJ pricing (use party rates by default)
@@ -2022,27 +2017,30 @@ app.post('/api/cart/add', async (c) => {
     const { serviceId, eventDate, hours } = await c.req.json()
     
     // Validate service
-    const service = servicePricing[serviceId as keyof typeof servicePricing]
+    const service = servicePricing[serviceId as keyof typeof servicePricing] as Record<string, any> | undefined
     if (!service) {
       return c.json({ error: 'Invalid service' }, 400)
     }
-    
+
     // Validate hours
-    if (hours < service.minHours) {
-      return c.json({ error: `Minimum ${service.minHours} hours required` }, 400)
+    const minHours = service.minHours || service.baseHours || 1
+    if (hours < minHours) {
+      return c.json({ error: `Minimum ${minHours} hours required` }, 400)
     }
-    
+
     // Calculate price
-    const subtotal = service.basePrice + (service.hourlyRate * hours)
-    
+    const basePrice = service.basePrice || 0
+    const hourlyRate = service.hourlyRate || 0
+    const subtotal = basePrice + (hourlyRate * hours)
+
     const cartItem = {
       id: `${serviceId}-${Date.now()}`,
       serviceId,
       serviceName: service.name,
       eventDate,
       hours,
-      basePrice: service.basePrice,
-      hourlyRate: service.hourlyRate,
+      basePrice,
+      hourlyRate,
       subtotal
     }
     
@@ -2117,17 +2115,17 @@ app.post('/api/create-payment-intent', async (c) => {
         serviceKey = 'dj_wedding' as keyof typeof servicePricing
       }
       
-      let service = servicePricing[serviceKey]
+      let service = servicePricing[serviceKey] as Record<string, any> | undefined
       if (!service) {
         // Fallback to original serviceId
-        service = servicePricing[item.serviceId as keyof typeof servicePricing]
+        service = servicePricing[item.serviceId as keyof typeof servicePricing] as Record<string, any> | undefined
       }
       if (!service) {
         return c.json({ error: `Invalid service: ${item.serviceId}` }, 400)
       }
-      
+
       const hours = item.hours || service.baseHours || 4
-      const basePrice = service.basePrice
+      const basePrice = service.basePrice || 0
       const hourlyRate = service.hourlyRate || 0
       const baseHours = service.baseHours || 4
       
@@ -2480,10 +2478,12 @@ app.post('/api/checkout/create-session', async (c) => {
     // Calculate total
     let total = 0
     const lineItems = items.map((item: any) => {
-      const service = servicePricing[item.serviceId as keyof typeof servicePricing]
+      const service = servicePricing[item.serviceId as keyof typeof servicePricing] as Record<string, any> | undefined
       if (!service) throw new Error('Invalid service')
-      
-      const subtotal = service.basePrice + (service.hourlyRate * item.hours)
+
+      const basePrice = service.basePrice || 0
+      const hourlyRate = service.hourlyRate || 0
+      const subtotal = basePrice + (hourlyRate * item.hours)
       total += subtotal
       
       return {
@@ -2839,7 +2839,7 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
       `).bind(startDate, endDate).all()
       
       // Update availability based on bookings
-      for (const booking of (bookings.results || [])) {
+      for (const booking of (bookings.results || []) as any[]) {
         const dateStr = booking.event_date as string
         if (availability[dateStr]) {
           availability[dateStr].bookings = booking.count
@@ -2872,7 +2872,7 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
     `).bind(provider, startDate, endDate).all()
     
     // Mark blocked dates
-    for (const block of (blocks.results || [])) {
+    for (const block of (blocks.results || []) as any[]) {
       const dateStr = block.block_date as string
       if (availability[dateStr]) {
         availability[dateStr].available = false
@@ -2882,7 +2882,7 @@ app.get('/api/availability/:provider/:year/:month', async (c) => {
     }
     
     // Update DJ availability based on bookings
-    for (const slot of (timeSlots.results || [])) {
+    for (const slot of (timeSlots.results || []) as any[]) {
       const dateStr = slot.event_date as string
       if (availability[dateStr]) {
         const count = slot.count as number
@@ -7309,9 +7309,9 @@ app.get('/api/admin/bookings', async (c) => {
     `).all()
 
     return c.json({ success: true, bookings: result.results })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin bookings error:', error)
-    return c.json({ success: false, error: error.message }, 500)
+    return c.json({ success: false, error: error?.message || 'Unknown error' }, 500)
   }
 })
 
@@ -7322,29 +7322,29 @@ app.get('/api/admin/stats', async (c) => {
     const { DB } = env
 
     // Get counts
-    const totalBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings').first()
-    const totalUsers = await DB.prepare('SELECT COUNT(*) as count FROM users').first()
-    const totalProviders = await DB.prepare('SELECT COUNT(*) as count FROM provider_contacts').first()
-    
+    const totalBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings').first() as any
+    const totalUsers = await DB.prepare('SELECT COUNT(*) as count FROM users').first() as any
+    const totalProviders = await DB.prepare('SELECT COUNT(*) as count FROM provider_contacts').first() as any
+
     // Get revenue
-    const revenue = await DB.prepare('SELECT SUM(total_price) as total FROM bookings WHERE status = "confirmed"').first()
-    
+    const revenue = await DB.prepare('SELECT SUM(total_price) as total FROM bookings WHERE status = "confirmed"').first() as any
+
     // Get recent bookings
-    const recentBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings WHERE created_at >= datetime("now", "-7 days")').first()
+    const recentBookings = await DB.prepare('SELECT COUNT(*) as count FROM bookings WHERE created_at >= datetime("now", "-7 days")').first() as any
 
     return c.json({
       success: true,
       stats: {
-        totalBookings: totalBookings.count || 0,
-        totalUsers: totalUsers.count || 0,
-        totalProviders: totalProviders.count || 0,
-        totalRevenue: revenue.total || 0,
-        recentBookings: recentBookings.count || 0
+        totalBookings: totalBookings?.count || 0,
+        totalUsers: totalUsers?.count || 0,
+        totalProviders: totalProviders?.count || 0,
+        totalRevenue: revenue?.total || 0,
+        recentBookings: recentBookings?.count || 0
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin stats error:', error)
-    return c.json({ success: false, error: error.message }, 500)
+    return c.json({ success: false, error: error?.message || 'Unknown error' }, 500)
   }
 })
 
@@ -7367,9 +7367,9 @@ app.post('/api/admin/bookings/:id/status', async (c) => {
       .run()
 
     return c.json({ success: true, message: 'Booking status updated' })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update status error:', error)
-    return c.json({ success: false, error: error.message }, 500)
+    return c.json({ success: false, error: error?.message || 'Unknown error' }, 500)
   }
 })
 
@@ -7382,9 +7382,9 @@ app.get('/api/admin/providers', async (c) => {
     const result = await DB.prepare('SELECT * FROM provider_contacts ORDER BY provider_name').all()
 
     return c.json({ success: true, providers: result.results })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin providers error:', error)
-    return c.json({ success: false, error: error.message }, 500)
+    return c.json({ success: false, error: error?.message || 'Unknown error' }, 500)
   }
 })
 

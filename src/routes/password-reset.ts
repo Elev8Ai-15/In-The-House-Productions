@@ -71,7 +71,7 @@ passwordReset.post('/api/auth/forgot-password', async (c) => {
     if (isDev) {
       console.log(`[DEV] Password reset for ${cleanEmail}: ${resetUrl}`)
     } else {
-      await fetch('https://api.resend.com/emails', {
+      const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,6 +101,9 @@ passwordReset.post('/api/auth/forgot-password', async (c) => {
           `
         })
       })
+      if (!emailRes.ok) {
+        console.error('Password reset email failed:', emailRes.status, await emailRes.text().catch(() => ''))
+      }
     }
 
     return c.json(successResponse)

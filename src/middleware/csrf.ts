@@ -64,14 +64,6 @@ export async function csrfProtection(c: Context, next: Next) {
     } catch {}
   }
 
-  // For JSON API requests, the Content-Type header itself acts as CSRF protection
-  // since custom content types trigger CORS preflight
-  const contentType = c.req.header('Content-Type')
-  if (contentType?.includes('application/json')) {
-    await next()
-    return
-  }
-
-  // Block the request
+  // Block the request - Origin/Referer validation or X-Requested-With header required
   return c.json({ error: 'CSRF validation failed. Please reload the page and try again.' }, 403)
 }
