@@ -215,7 +215,7 @@ export function isValidPassword(password: string): { valid: boolean; message: st
   return { valid: true, message: 'Password is valid' }
 }
 
-// Sanitize input to prevent XSS
+// Sanitize input to prevent XSS (for DB-bound values)
 export function sanitizeInput(input: string): string {
   return input
     .replace(/</g, '&lt;')
@@ -223,4 +223,15 @@ export function sanitizeInput(input: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
     .replace(/\//g, '&#x2F;')
+}
+
+// Escape HTML for safe SSR template interpolation (query params, URL params → HTML)
+export function escapeHtml(input: string | undefined | null): string {
+  if (!input) return ''
+  return String(input)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
 }

@@ -10,7 +10,8 @@ import {
   isValidEmail,
   isValidPhone,
   isValidPassword,
-  sanitizeInput
+  sanitizeInput,
+  escapeHtml
 } from './auth'
 import { getJWTSecret } from './auth-middleware'
 import {
@@ -6277,9 +6278,9 @@ app.get('/photobooth', (c) => {
 
 // Mock Checkout Success Page (Development Mode)
 app.get('/checkout/mock-success', async (c) => {
-  const sessionId = c.req.query('session_id')
-  const bookingId = c.req.query('booking_id')
-  const total = c.req.query('total')
+  const sessionId = escapeHtml(c.req.query('session_id'))
+  const bookingId = escapeHtml(c.req.query('booking_id'))
+  const total = escapeHtml(c.req.query('total'))
   const weddingParam = c.req.query('wedding')
   const refersionKey = c.env.REFERSION_PUBLIC_KEY
   
@@ -9640,7 +9641,7 @@ app.post('/api/admin/fix-event-details', async (c) => {
 
 // ===== WEDDING PLANNER FORM PAGE =====
 app.get('/wedding-planner/:bookingId', (c) => {
-  const bookingId = c.req.param('bookingId')
+  const bookingId = escapeHtml(c.req.param('bookingId'))
   const refersionKey = c.env.REFERSION_PUBLIC_KEY
   return c.html(`
     <!DOCTYPE html>
