@@ -1,6 +1,15 @@
 // Image Optimization Helpers
 // Generates optimized image tags with lazy loading, srcset, and WebP hints
 
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 /**
  * Generate an optimized img tag with lazy loading and responsive hints.
  * Uses native browser lazy loading and intersection observer fallback.
@@ -32,16 +41,16 @@ export function optimizedImage(opts: {
   const widthAttr = width ? `width="${width}"` : ''
   const heightAttr = height ? `height="${height}"` : ''
 
-  return `<img 
-    src="${src}" 
-    alt="${alt}" 
-    loading="${loadingAttr}" 
+  return `<img
+    src="${escapeAttr(src)}"
+    alt="${escapeAttr(alt)}"
+    loading="${loadingAttr}"
     ${fetchPriority}
     ${decoding}
     ${widthAttr}
     ${heightAttr}
-    ${className ? `class="${className}"` : ''}
-    sizes="${sizes}"
+    ${className ? `class="${escapeAttr(className)}"` : ''}
+    sizes="${escapeAttr(sizes)}"
     style="content-visibility: auto;"
     onerror="this.onerror=null; this.style.display='none';"
   >`

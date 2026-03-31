@@ -114,8 +114,14 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Apply security headers to all routes (Zero-Trust Security)
 app.use('*', securityHeaders)
 
-// Enable CORS
-app.use('/api/*', cors())
+// Enable CORS — restrict to same origin and known clients
+app.use('/api/*', cors({
+  origin: ['https://www.inthehouseproductions.com', 'https://inthehouseproductions.com'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400,
+}))
 
 // CSRF protection for state-changing requests
 app.use('/api/*', csrfProtection)
@@ -362,8 +368,11 @@ app.post('/api/setup/reset-admin', async (c) => {
     const body = await c.req.json()
     const { email, new_password, setup_key } = body
     
-    // Require setup key from environment (falls back to default for backwards compat)
-    const SETUP_KEY = c.env?.SETUP_KEY || 'InTheHouse2026!'
+    // Require setup key from environment — no hardcoded fallback
+    const SETUP_KEY = c.env?.SETUP_KEY
+    if (!SETUP_KEY) {
+      return c.json({ error: 'Setup not configured. Set SETUP_KEY environment variable.' }, 503)
+    }
     if (setup_key !== SETUP_KEY) {
       return c.json({ error: 'Invalid setup key' }, 403)
     }
