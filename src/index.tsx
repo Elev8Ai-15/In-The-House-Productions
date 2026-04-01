@@ -3849,8 +3849,8 @@ app.get('/', (c) => {
                     </p>
                 </div>
                 
-                <!-- Auth Buttons -->
-                <div class="mt-12 text-center space-x-4">
+                <!-- Auth Buttons (swap based on login state) -->
+                <div id="auth-buttons" class="mt-12 text-center space-x-4">
                     <button onclick="window.location.href='/register'" class="btn-red rounded px-8 py-3">
                         <i class="fas fa-user-plus mr-2"></i> GET STARTED
                     </button>
@@ -3858,6 +3858,23 @@ app.get('/', (c) => {
                         <i class="fas fa-sign-in-alt mr-2"></i> SIGN IN
                     </button>
                 </div>
+                <div id="user-buttons" class="mt-12 text-center space-x-4" style="display:none;">
+                    <button onclick="window.location.href='/services'" class="btn-red rounded px-8 py-3">
+                        <i class="fas fa-calendar-plus mr-2"></i> BOOK NOW
+                    </button>
+                    <button onclick="localStorage.removeItem('authToken');localStorage.removeItem('user');window.location.reload();" class="bg-transparent border-2 border-chrome-silver text-chrome-silver px-8 py-3 rounded hover:bg-chrome-silver hover:text-black transition-all">
+                        <i class="fas fa-sign-out-alt mr-2"></i> SIGN OUT
+                    </button>
+                </div>
+                <script>
+                  (function() {
+                    var token = localStorage.getItem('authToken');
+                    if (token) {
+                      document.getElementById('auth-buttons').style.display = 'none';
+                      document.getElementById('user-buttons').style.display = '';
+                    }
+                  })();
+                </script>
             </main>
             
             <!-- Footer -->
@@ -5030,8 +5047,8 @@ app.get('/event-details', (c) => {
                     </div>
                     <div>
                         <label class="form-label">State <span class="required">*</span></label>
-                        <input type="text" id="venueState" class="form-input" 
-                               maxlength="2" placeholder="FL" required>
+                        <input type="text" id="venueState" class="form-input"
+                               maxlength="2" value="FL" placeholder="FL" required>
                     </div>
                     <div>
                         <label class="form-label">ZIP <span class="required">*</span></label>
@@ -6640,7 +6657,7 @@ app.get('/register', (c) => {
             messageEl.classList.remove('hidden');
             localStorage.setItem('authToken', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            setTimeout(() => { window.location.href = '/services'; }, 2000);
           } else {
             messageEl.className = 'error-message p-3 rounded mb-4';
             messageEl.textContent = '✗ ' + (data.error || 'Registration failed');
@@ -6743,12 +6760,12 @@ app.get('/login', (c) => {
             messageEl.textContent = '✓ ' + data.message + ' Token saved! Redirecting...';
             messageEl.classList.remove('hidden');
             
-            setTimeout(() => { 
-              if (data.user.role === 'admin') { 
-                window.location.href = '/admin'; 
-              } else { 
-                window.location.href = '/dj-services'; 
-              } 
+            setTimeout(() => {
+              if (data.user.role === 'admin') {
+                window.location.href = '/admin';
+              } else {
+                window.location.href = '/services';
+              }
             }, 2000);
           } else {
             console.error('[LOGIN PAGE] Login failed:', data.error);
@@ -10324,6 +10341,130 @@ app.get('/wedding-planner/:bookingId', (c) => {
     </body>
     </html>
   `)
+})
+
+// ===== SERVICE SELECTION PAGE =====
+// After login/register, users choose between DJ Services and Photobooth
+app.get('/services', (c) => {
+  const version = Date.now()
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose Your Service - In The House Productions</title>
+    <link href="/static/ultra-3d.css?v=${version}" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+      body { background: #0a0a0a; color: #fff; font-family: 'Arial', sans-serif; min-height: 100vh; }
+      .service-card {
+        border: 2px solid #333;
+        border-radius: 20px;
+        padding: 2.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: rgba(20, 20, 20, 0.9);
+        max-width: 400px;
+        width: 100%;
+      }
+      .service-card:hover {
+        border-color: #E31E24;
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(227, 30, 36, 0.3);
+      }
+      .service-card img {
+        max-width: 280px;
+        margin: 0 auto 1.5rem;
+        border-radius: 12px;
+      }
+      .service-card h2 {
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+      }
+      .service-card p { color: #aaa; margin-bottom: 1rem; }
+      .service-card .price { color: #E31E24; font-size: 1.4rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="max-w-5xl mx-auto px-4 py-12">
+        <div class="text-center mb-12">
+            <h1 style="font-size:2.5rem; font-weight:bold; color:#E31E24; margin-bottom:0.5rem;">Choose Your Service</h1>
+            <p style="color:#aaa; font-size:1.1rem;">What would you like for your event?</p>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:2rem; justify-content:center;">
+            <div class="service-card" onclick="window.location.href='/dj-services'">
+                <img src="/static/dj-services-logo.png" alt="DJ Services" onerror="this.style.display='none'">
+                <h2 style="color:#E31E24;">DJ Services</h2>
+                <p>Professional DJs for your special event</p>
+                <div class="price">Starting at $500</div>
+                <p style="color:#888; font-size:0.9rem; margin-top:0.5rem;">Parties (4 hrs) &bull; Weddings (5 hrs)</p>
+                <div style="margin-top:1.5rem;">
+                    <span style="background:linear-gradient(135deg,#E31E24,#FF0040); color:#fff; padding:12px 32px; border-radius:50px; font-weight:bold; display:inline-block;">
+                        <i class="fas fa-music mr-2"></i> SELECT DJ
+                    </span>
+                </div>
+            </div>
+
+            <div class="service-card" onclick="window.location.href='/photobooth'">
+                <img src="/static/photobooth-logo.png" alt="Photobooth" onerror="this.style.display='none'">
+                <h2 style="color:#FFD700;">Photobooth</h2>
+                <p>Fun memories with instant prints</p>
+                <div class="price" style="color:#FFD700;">Starting at $500</div>
+                <p style="color:#888; font-size:0.9rem; margin-top:0.5rem;">4 hrs unlimited strips &bull; 4x6 prints</p>
+                <div style="margin-top:1.5rem;">
+                    <span style="background:linear-gradient(135deg,#FFD700,#FFA500); color:#000; padding:12px 32px; border-radius:50px; font-weight:bold; display:inline-block;">
+                        <i class="fas fa-camera mr-2"></i> SELECT PHOTOBOOTH
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-10">
+            <a href="/" style="color:#888; text-decoration:none;">
+                <i class="fas fa-arrow-left mr-2"></i> Back to Home
+            </a>
+        </div>
+    </div>
+    <script>
+      // Redirect to login if not authenticated
+      if (!localStorage.getItem('authToken')) {
+        window.location.href = '/login';
+      }
+    </script>
+</body>
+</html>`)
+})
+
+// ===== BRANDED 404 PAGE =====
+app.notFound((c) => {
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - In The House Productions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+      body { background: #0a0a0a; color: #fff; font-family: 'Arial', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+    <div style="text-align:center; padding:2rem;">
+        <div style="font-size:6rem; margin-bottom:1rem;">🎵</div>
+        <h1 style="font-size:4rem; font-weight:bold; color:#E31E24; margin-bottom:0.5rem;">404</h1>
+        <h2 style="font-size:1.5rem; color:#C0C0C0; margin-bottom:1.5rem;">This track doesn't exist</h2>
+        <p style="color:#888; margin-bottom:2rem;">The page you're looking for couldn't be found.</p>
+        <a href="/" style="display:inline-block; background:linear-gradient(135deg,#E31E24,#FF0040); color:#fff; padding:14px 36px; border-radius:50px; text-decoration:none; font-weight:bold; font-size:1rem;">
+            <i class="fas fa-home mr-2"></i> BACK TO HOME
+        </a>
+    </div>
+</body>
+</html>`, 404)
 })
 
 export default app
